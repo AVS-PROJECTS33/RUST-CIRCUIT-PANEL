@@ -146,6 +146,12 @@
             </button>
         </div>
 
+        <!-- Notificación de Error de Cableado -->
+        <div id="toast-message" class="hidden absolute top-20 left-1/2 -translate-x-1/2 bg-red-600 text-white px-5 py-2.5 rounded-full border border-red-400 font-bold text-xs shadow-2xl z-[150] items-center gap-2 transition-all duration-300">
+            <i data-lucide="alert-circle" class="w-4 h-4"></i>
+            <span id="toast-text">Mensaje</span>
+        </div>
+
     </main>
 
     <!-- Modal de Proyectos -->
@@ -369,6 +375,8 @@
                 readonly: document.getElementById('readonly-alert'),
                 readOverlay: document.getElementById('read-only-overlay')
             },
+            toast: document.getElementById('toast-message'),
+            toastText: document.getElementById('toast-text'),
             inputs: {
                 projName: document.getElementById('project-name'),
                 projPass: document.getElementById('project-password')
@@ -454,8 +462,27 @@
             
             if (state.isPanning) DOM.canvasWrapper.style.cursor = 'grabbing';
             
-            if (state.connecting) DOM.alerts.wiring.classList.replace('hidden', 'flex');
-            else DOM.alerts.wiring.classList.replace('flex', 'hidden');
+            if (state.connecting) {
+                const pt = state.connecting.portType;
+                let icon = 'zap', color = 'text-yellow-300', title = 'Cable Eléctrico', bg = 'bg-blue-600/95', border = 'border-blue-400';
+                
+                if (pt === 'liquid') { 
+                    icon = 'droplets'; color = 'text-cyan-300'; title = 'Manguera de Agua'; bg = 'bg-cyan-700/95'; border = 'border-cyan-400'; 
+                } else if (pt === 'industrial') { 
+                    icon = 'box'; color = 'text-orange-300'; title = 'Tubería Industrial'; bg = 'bg-orange-700/95'; border = 'border-orange-400'; 
+                }
+                
+                DOM.alerts.wiring.className = `absolute top-6 left-1/2 -translate-x-1/2 text-white px-5 py-2.5 rounded-full border font-medium text-xs shadow-2xl z-50 items-center gap-3 animate-bounce flex ${bg} ${border}`;
+                DOM.alerts.wiring.innerHTML = `
+                    <i data-lucide="${icon}" class="${color} animate-pulse w-4 h-4"></i>
+                    <span><strong>Modo ${title}:</strong> Clic en el fondo para fijar codos. Clic en destino para terminar.</span>
+                    <button id="btn-cancel-wire" class="bg-slate-900/40 hover:bg-slate-900/60 text-white font-bold text-[10px] uppercase px-2 py-1 rounded transition border border-white/20">Cancelar (ESC)</button>
+                `;
+                document.getElementById('btn-cancel-wire').onclick = cancelWire;
+                lucide.createIcons({ root: DOM.alerts.wiring });
+            } else {
+                DOM.alerts.wiring.className = 'hidden';
+            }
 
             renderNodes();
             drawWires();
@@ -509,14 +536,14 @@
                             ${comp.inputs.map(p => {
                                 const color = p.type==='liquid'?'bg-cyan-400':p.type==='industrial'?'bg-orange-500':'bg-yellow-400';
                                 const isConn = state.connecting && state.connecting.nodeId === node.id && state.connecting.portId === p.id;
-                                return `<div onmousedown="handlePortClick(event, '${node.id}', '${p.id}', '${p.type}', true)" class="w-3.5 h-3.5 ${color} rounded-full border-2 border-slate-950 cursor-pointer hover:scale-150 transition-transform shadow-md ${isConn?'ring-2 ring-white scale-125':''}"></div>`;
+                                return `<div onmousedown="handlePortClick(event, '${node.id}', '${p.id}', '${p.type}', true)" class="w-3.5 h-3.5 ${color} rounded-full border-2 border-slate-950 cursor-pointer hover:scale-150 transition-transform shadow-md ${isConn?'ring-2 ring-white scale-125 animate-pulse':''}"></div>`;
                             }).join('')}
                         </div>
                         <div class="absolute right-0 top-2 bottom-2 flex flex-col gap-2.5 -mr-3 z-30">
                             ${comp.outputs.map(p => {
                                 const color = p.type==='liquid'?'bg-cyan-400':p.type==='industrial'?'bg-orange-500':'bg-blue-500';
                                 const isConn = state.connecting && state.connecting.nodeId === node.id && state.connecting.portId === p.id;
-                                return `<div onmousedown="handlePortClick(event, '${node.id}', '${p.id}', '${p.type}', false)" class="w-3.5 h-3.5 ${color} rounded-full border-2 border-slate-950 cursor-pointer hover:scale-150 transition-transform shadow-md ${isConn?'ring-2 ring-white scale-125':''}"></div>`;
+                                return `<div onmousedown="handlePortClick(event, '${node.id}', '${p.id}', '${p.type}', false)" class="w-3.5 h-3.5 ${color} rounded-full border-2 border-slate-950 cursor-pointer hover:scale-150 transition-transform shadow-md ${isConn?'ring-2 ring-white scale-125 animate-pulse':''}"></div>`;
                             }).join('')}
                         </div>
                         <div class="flex justify-between w-full h-full text-slate-400 pointer-events-none text-[9px] font-mono">
@@ -555,13 +582,14 @@
                 };
 
                 let ta = document.createElement('textarea');
-                ta.className = "textarea-nodrag bg-slate-950/90 text-yellow-300 font-mono text-xs p-2 rounded border border-slate-700 focus:border-yellow-500 focus:outline-none transition-colors resize-both custom-scrollbar block";
+                ta.className = "textarea-nodrag bg-slate-950/90 text-yellow-300 font-mono text-xs p-2 rounded border border-slate-700 focus:border-yellow-500 focus:outline-none transition-colors custom-scrollbar block";
                 ta.value = text.content;
                 ta.placeholder = "Escribe aquí...";
                 ta.style.width = (text.width || 150) + 'px';
                 ta.style.height = (text.height || 60) + 'px';
                 ta.style.minWidth = '100px';
                 ta.style.minHeight = '40px';
+                ta.style.resize = 'both';
                 ta.disabled = state.tool === 'delete' || state.tool === 'pan' || state.isReadOnly;
                 
                 ta.onmousedown = e => e.stopPropagation();
@@ -610,17 +638,30 @@
                 
                 const pathD = renderPathD(start, conn.waypoints, end);
                 const isBlack = conn.color === '#000000';
-                
-                const swOutline = conn.portType === 'electric' ? (isBlack ? 5 : 6) : 8;
-                const swInner = conn.portType === 'electric' ? 3.5 : 5;
                 const outColor = isBlack ? '#ffffff' : '#020617';
+                
+                const pt = conn.portType;
+                let swOutline = 6, swInner = 3.5, dashArray = 'none', lineCap = 'round', lineJoin = 'round', extraLayer = '';
+                
+                if (pt === 'liquid') {
+                    swOutline = 7; swInner = 4; dashArray = '8,6';
+                } else if (pt === 'industrial') {
+                    swOutline = 10; swInner = 6; lineCap = 'square'; lineJoin = 'miter'; dashArray = '10,8';
+                    extraLayer = `<path d="${pathD}" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" stroke-dasharray="10,8"></path>`;
+                } else { // electric
+                    swOutline = isBlack ? 5 : 6;
+                }
 
                 html += `
                     <g class="group pointer-events-auto ${state.tool === 'delete' && !state.isReadOnly ? 'cursor-pointer wire-interactive' : 'cursor-pointer'}" 
                        onmousedown="handleWireInteraction(event, '${conn.id}')">
-                        <path d="${pathD}" fill="none" stroke="${outColor}" stroke-width="${swOutline}" stroke-linecap="round" stroke-linejoin="round"></path>
-                        <path d="${pathD}" fill="none" stroke="${conn.color}" stroke-width="${swInner}" stroke-linecap="round" stroke-linejoin="round"></path>
-                        ${(conn.waypoints||[]).map(wp => `<circle cx="${wp.x}" cy="${wp.y}" r="3" fill="${conn.color}" stroke="${outColor}" stroke-width="1.5"></circle>`).join('')}
+                        <path d="${pathD}" fill="none" stroke="${outColor}" stroke-width="${swOutline}" stroke-linecap="${lineCap}" stroke-linejoin="${lineJoin}"></path>
+                        <path d="${pathD}" fill="none" stroke="${conn.color}" stroke-width="${swInner}" stroke-dasharray="${dashArray}" stroke-linecap="${lineCap}" stroke-linejoin="${lineJoin}"></path>
+                        ${extraLayer}
+                        ${(conn.waypoints||[]).map(wp => {
+                            if (pt === 'industrial') return `<rect x="${wp.x-3.5}" y="${wp.y-3.5}" width="7" height="7" fill="${conn.color}" stroke="${outColor}" stroke-width="1.5"></rect>`;
+                            return `<circle cx="${wp.x}" cy="${wp.y}" r="3" fill="${conn.color}" stroke="${outColor}" stroke-width="1.5"></circle>`;
+                        }).join('')}
                     </g>
                 `;
             });
@@ -637,29 +678,71 @@
 
             const pathD = renderPathD(start, state.connecting.waypoints, mouseLocal);
             const isBlack = state.wireColor === '#000000';
-            const swOutline = state.connecting.portType === 'electric' ? (isBlack ? 5 : 6) : 8;
-            const swInner = state.connecting.portType === 'electric' ? 3.5 : 5;
             const outColor = isBlack ? '#ffffff' : '#020617';
+            const pt = state.connecting.portType;
+            
+            let swOutline = 6, swInner = 3.5, dashArray = '6,4', lineCap = 'round', lineJoin = 'round', extraLayer = '';
+            
+            if (pt === 'liquid') {
+                swOutline = 7; swInner = 4; dashArray = '8,6';
+            } else if (pt === 'industrial') {
+                swOutline = 10; swInner = 6; lineCap = 'square'; lineJoin = 'miter'; dashArray = '10,8';
+                extraLayer = `<path d="${pathD}" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" stroke-dasharray="10,8"></path>`;
+            } else {
+                swOutline = isBlack ? 5 : 6;
+            }
 
             let html = `
                 <g opacity="0.8">
-                    <path d="${pathD}" fill="none" stroke="${outColor}" stroke-width="${swOutline}" stroke-linecap="round" stroke-linejoin="round"></path>
-                    <path d="${pathD}" fill="none" stroke="${state.wireColor}" stroke-width="${swInner}" stroke-dasharray="6,4" stroke-linecap="round" stroke-linejoin="round"></path>
-                    ${state.connecting.waypoints.map(wp => `<circle cx="${wp.x}" cy="${wp.y}" r="4" fill="#ffffff" stroke="${state.wireColor}" stroke-width="2"></circle>`).join('')}
+                    <path d="${pathD}" fill="none" stroke="${outColor}" stroke-width="${swOutline}" stroke-linecap="${lineCap}" stroke-linejoin="${lineJoin}"></path>
+                    <path d="${pathD}" fill="none" stroke="${state.wireColor}" stroke-width="${swInner}" stroke-dasharray="${dashArray}" stroke-linecap="${lineCap}" stroke-linejoin="${lineJoin}"></path>
+                    ${extraLayer}
+                    ${state.connecting.waypoints.map(wp => {
+                        if (pt === 'industrial') return `<rect x="${wp.x-4}" y="${wp.y-4}" width="8" height="8" fill="#ffffff" stroke="${state.wireColor}" stroke-width="2"></rect>`;
+                        return `<circle cx="${wp.x}" cy="${wp.y}" r="4" fill="#ffffff" stroke="${state.wireColor}" stroke-width="2"></circle>`;
+                    }).join('')}
                 </g>
             `;
             DOM.activeWireLayer.innerHTML = html;
+        }
+
+        let toastTimeout;
+        function showToast(msg) {
+            DOM.toastText.innerText = msg;
+            DOM.toast.classList.remove('hidden');
+            DOM.toast.classList.add('flex', 'animate-pulse');
+            lucide.createIcons({ root: DOM.toast });
+            
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                DOM.toast.classList.add('hidden');
+                DOM.toast.classList.remove('flex', 'animate-pulse');
+            }, 3000);
         }
 
         function handlePortClick(e, nodeId, portId, portType, isInput) {
             e.stopPropagation();
             if (state.tool === 'delete' || state.isReadOnly) return;
 
+            const isOccupied = state.connections.some(c => 
+                (c.startNodeId === nodeId && c.startPortId === portId) || 
+                (c.endNodeId === nodeId && c.endPortId === portId)
+            );
+
             if (!state.connecting) {
+                if (isOccupied) {
+                    showToast("No es posible conectar 2 cables en el mismo puerto.");
+                    return;
+                }
                 state.connecting = { nodeId, portId, portType, isInput, waypoints: [] };
                 updateToolUI();
             } else {
                 if (state.connecting.nodeId === nodeId || state.connecting.portType !== portType || state.connecting.isInput === isInput) {
+                    return;
+                }
+
+                if (isOccupied) {
+                    showToast("No es posible conectar 2 cables en el mismo puerto.");
                     return;
                 }
 
