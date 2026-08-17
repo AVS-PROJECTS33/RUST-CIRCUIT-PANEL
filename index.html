@@ -1,1110 +1,1040 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { 
-  Settings, Battery, Zap, Sun, GitFork, ToggleLeft, 
-  Box, ArrowRightLeft, Type, MousePointer2, Trash2,
-  Info, Save, FolderOpen, Plus, X, Droplets, Radio, 
-  Cpu, Server, Lightbulb, Flame, DoorOpen, Timer,
-  ChevronDown, ChevronRight, Palette, Hand, ZoomIn, ZoomOut,
-  AlertTriangle, Eye, ShieldAlert, Disc, Sliders, Hash, Volume2,
-  Lock, Unlock, KeyRound, Globe, Download, Upload
-} from 'lucide-react';
-
-const generateId = () => Math.random().toString(36).substr(2, 9);
-
-const CATEGORIES = {
-  generator: { name: 'Generadores', icon: <Zap size={16} />, color: 'text-yellow-400', border: 'border-yellow-500/50', bg: 'bg-slate-800' },
-  storage: { name: 'Almacenamiento', icon: <Battery size={16} />, color: 'text-green-400', border: 'border-green-500/50', bg: 'bg-slate-800' },
-  logic: { name: 'Lógica y Sensores', icon: <Cpu size={16} />, color: 'text-blue-400', border: 'border-blue-500/50', bg: 'bg-slate-800' },
-  device: { name: 'Dispositivos y Defensas', icon: <Radio size={16} />, color: 'text-red-400', border: 'border-red-500/50', bg: 'bg-slate-800' },
-  industrial: { name: 'Industrial', icon: <Box size={16} />, color: 'text-orange-400', border: 'border-orange-500/50', bg: 'bg-slate-800' },
-  liquid: { name: 'Líquidos y Agua', icon: <Droplets size={16} />, color: 'text-cyan-400', border: 'border-cyan-500/50', bg: 'bg-slate-800' }
-};
-
-const RUST_COMPONENTS = {
-  // GENERADORES
-  solar_panel: { name: 'Panel Solar', category: 'generator', img: 'solarpanel.large', inputs: [], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  wind_turbine: { name: 'Aerogenerador', category: 'generator', img: 'generator.wind.scrap', inputs: [], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  water_catcher: { name: 'Recolector de Agua', category: 'generator', img: 'water.catcher.large', inputs: [], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }] },
-  small_generator: { name: 'Generador Pequeño', category: 'generator', img: 'generator.small', inputs: [{ id: 'in1', name: 'Force Start', type: 'electric' }, { id: 'in2', name: 'Force Stop', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  
-  // ALMACENAMIENTO
-  large_battery: { name: 'Batería Grande', category: 'storage', img: 'battery.large', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  medium_battery: { name: 'Batería Mediana', category: 'storage', img: 'battery.medium', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  small_battery: { name: 'Batería Pequeña', category: 'storage', img: 'battery.small', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  fluid_barrel: { name: 'Barril de Agua', category: 'storage', img: 'water.barrel', inputs: [{ id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }] },
-
-  // LÓGICA Y SENSORES
-  splitter: { name: 'Divisor (Splitter)', category: 'logic', img: 'electrical.splitter', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Out 1', type: 'electric' }, { id: 'out2', name: 'Out 2', type: 'electric' }, { id: 'out3', name: 'Out 3', type: 'electric' }] },
-  branch: { name: 'Ramificador (Branch)', category: 'logic', img: 'electrical.branch', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Branch Out', type: 'electric' }, { id: 'out2', name: 'Power Out', type: 'electric' }] },
-  combiner: { name: 'Combinador Principal', category: 'logic', img: 'electrical.combiner', inputs: [{ id: 'in1', name: 'Power In 1', type: 'electric' }, { id: 'in2', name: 'Power In 2', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  blocker: { name: 'Bloqueador (Blocker)', category: 'logic', img: 'electrical.blocker', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Block Passthrough', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  memory_cell: { name: 'Célula de Memoria', category: 'logic', img: 'electrical.memorycell', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Set', type: 'electric' }, { id: 'in3', name: 'Reset', type: 'electric' }, { id: 'in4', name: 'Toggle', type: 'electric' }], outputs: [{ id: 'out1', name: 'Output', type: 'electric' }, { id: 'out2', name: 'Inverted', type: 'electric' }] },
-  switch: { name: 'Interruptor Manual', category: 'logic', img: 'switch', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Switch On', type: 'electric' }, { id: 'in3', name: 'Switch Off', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  smart_switch: { name: 'Interruptor Inteligente', category: 'logic', img: 'smart.switch', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  hbhf_sensor: { name: 'Sensor HBHF (Detector Calvos)', category: 'logic', img: 'sensor.hbhf', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  laser_detector: { name: 'Detector Láser', category: 'logic', img: 'electrical.laser.detector', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  pressure_pad: { name: 'Placa de Presión', category: 'logic', img: 'target.info', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  push_button: { name: 'Pulsador / Botón', category: 'logic', img: 'push.button', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  timer: { name: 'Temporizador', category: 'logic', img: 'electrical.timer', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Toggle', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  counter: { name: 'Contador Eléctrico', category: 'logic', img: 'counter', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Increment', type: 'electric' }, { id: 'in3', name: 'Decrement', type: 'electric' }], outputs: [{ id: 'out1', name: 'Passthrough', type: 'electric' }] },
-  rf_receiver: { name: 'Receptor RF', category: 'logic', img: 'rf.receiver', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  rf_broadcaster: { name: 'Transmisor RF', category: 'logic', img: 'rf.broadcaster', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [] },
-  or_switch: { name: 'Puerto Lógico OR', category: 'logic', img: 'logic.or', inputs: [{ id: 'in1', name: 'Input A', type: 'electric' }, { id: 'in2', name: 'Input B', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  and_switch: { name: 'Puerto Lógico AND', category: 'logic', img: 'logic.and', inputs: [{ id: 'in1', name: 'Input A', type: 'electric' }, { id: 'in2', name: 'Input B', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-  xor_switch: { name: 'Puerto Lógico XOR', category: 'logic', img: 'logic.xor', inputs: [{ id: 'in1', name: 'Input A', type: 'electric' }, { id: 'in2', name: 'Input B', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }] },
-
-  // DISPOSITIVOS Y DEFENSAS
-  auto_turret: { name: 'Torreta Automática', category: 'device', img: 'autoturret', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'No Ammo', type: 'electric' }, { id: 'out2', name: 'Low Ammo', type: 'electric' }, { id: 'out3', name: 'Has Target', type: 'electric' }] },
-  sam_site: { name: 'Torreta Antiaérea SAM', category: 'device', img: 'sam.site', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Defender In', type: 'electric' }], outputs: [] },
-  shotgun_trap: { name: 'Trampa de Escopeta', category: 'device', img: 'guntrap', inputs: [], outputs: [] },
-  igniter: { name: 'Encendedor (Igniter)', category: 'device', img: 'igniter', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [] },
-  ceiling_light: { name: 'Lámpara de Techo', category: 'device', img: 'ceilinglight', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Passthrough', type: 'electric' }] },
-  siren_light: { name: 'Luz de Sirena', category: 'device', img: 'sirenlight', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Passthrough', type: 'electric' }] },
-  smart_alarm: { name: 'Alarma Inteligente App', category: 'device', img: 'smart.alarm', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [] },
-  audio_alarm: { name: 'Alarma Sonora', category: 'device', img: 'audio.alarm', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [] },
-  computer_station: { name: 'Estación PC / Cámaras', category: 'device', img: 'computerstation', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [] },
-  cctv_camera: { name: 'Cámara CCTV', category: 'device', img: 'cctv.camera', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [] },
-  ptz_camera: { name: 'Cámara PTZ Móvil', category: 'device', img: 'ptz.camera', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [] },
-  search_light: { name: 'Foco de Búsqueda', category: 'device', img: 'searchlight', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [] },
-  tesla_coil: { name: 'Bobina Tesla', category: 'device', img: 'teslacoil', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [] },
-
-  // INDUSTRIAL
-  electric_furnace: { name: 'Horno Eléctrico', category: 'industrial', img: 'electric.furnace', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_ind1', name: 'Item In', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }] },
-  storage_adaptor: { name: 'Adaptador de Cofre', category: 'industrial', img: 'storageadaptor', inputs: [{ id: 'in_ind1', name: 'Item In', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }] },
-  conveyor: { name: 'Transportador Industrial', category: 'industrial', img: 'industrial.conveyor', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_ind1', name: 'Item In', type: 'industrial' }, { id: 'in2', name: 'Turn On', type: 'electric' }, { id: 'in3', name: 'Turn Off', type: 'electric' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }, { id: 'out1', name: 'Filter Pass', type: 'electric' }, { id: 'out2', name: 'Filter Fail', type: 'electric' }] },
-  industrial_crafter: { name: 'Fabricante Automático', category: 'industrial', img: 'industrial.crafter', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_ind1', name: 'Item In', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }] },
-  industrial_splitter: { name: 'Divisor Industrial', category: 'industrial', img: 'industrial.splitter', inputs: [{ id: 'in_ind1', name: 'Item In', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Out 1', type: 'industrial' }, { id: 'out_ind2', name: 'Out 2', type: 'industrial' }, { id: 'out_ind3', name: 'Out 3', type: 'industrial' }] },
-  industrial_combiner: { name: 'Combinador Industrial', category: 'industrial', img: 'industrial.combiner', inputs: [{ id: 'in_ind1', name: 'In 1', type: 'industrial' }, { id: 'in_ind2', name: 'In 2', type: 'industrial' }, { id: 'in_ind3', name: 'In 3', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }] },
-
-  // LÍQUIDOS
-  fluid_pump: { name: 'Bomba de Agua', category: 'liquid', img: 'fluid.pump', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }] },
-  fluid_switch: { name: 'Válvula de Agua', category: 'liquid', img: 'fluid.switch', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Turn On', type: 'electric' }, { id: 'in3', name: 'Turn Off', type: 'electric' }, { id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }] },
-  fluid_splitter: { name: 'Divisor de Agua', category: 'liquid', img: 'fluid.splitter', inputs: [{ id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Out 1', type: 'liquid' }, { id: 'out_liq2', name: 'Out 2', type: 'liquid' }, { id: 'out_liq3', name: 'Out 3', type: 'liquid' }] },
-  fluid_combiner: { name: 'Combinador de Agua', category: 'liquid', img: 'fluid.combiner', inputs: [{ id: 'in_liq1', name: 'In 1', type: 'liquid' }, { id: 'in_liq2', name: 'In 2', type: 'liquid' }, { id: 'in_liq3', name: 'In 3', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }] },
-  water_purifier: { name: 'Purificador Eléctrico', category: 'liquid', img: 'water.purifier.powered', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }] },
-  sprinkler: { name: 'Aspersor de Cultivos', category: 'liquid', img: 'sprinkler', inputs: [{ id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Passthrough', type: 'liquid' }] }
-};
-
-const WIRE_COLORS = [
-  '#3b82f6', // Azul (Eléctrico por defecto)
-  '#eab308', // Amarillo
-  '#ef4444', // Rojo
-  '#22c55e', // Verde
-  '#f97316', // Naranja (Industrial)
-  '#06b6d4', // Cyan (Agua)
-  '#a855f7', // Morado
-  '#ec4899', // Rosa
-  '#ffffff'  // Blanco
-];
-
-// Local User ID para mantener autoría de proyectos localmente
-const getLocalUserId = () => {
-  let uid = localStorage.getItem('rust_planner_uid');
-  if (!uid) {
-    uid = 'user_' + generateId() + generateId();
-    localStorage.setItem('rust_planner_uid', uid);
-  }
-  return uid;
-};
-
-function ComponentImage({ imgSlug, name, category }) {
-  const [hasError, setHasError] = useState(false);
-
-  if (hasError) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-400 p-1 rounded text-center">
-        <Box size={18} className="mb-0.5 opacity-60" />
-        <span className="text-[8px] font-bold leading-tight uppercase tracking-tighter truncate w-full">{name}</span>
-      </div>
-    );
-  }
-
-  return (
-    <img 
-      src={`https://rustlabs.com/img/items180/${imgSlug}.png`} 
-      alt={name}
-      className="max-w-full max-h-full object-contain drop-shadow-md transition-transform"
-      onError={() => setHasError(true)}
-      referrerPolicy="no-referrer"
-    />
-  );
-}
-
-export default function RustPlanner() {
-  const [nodes, setNodes] = useState([]);
-  const [connections, setConnections] = useState([]);
-  const [texts, setTexts] = useState([]);
-  
-  // Proyectos
-  const [projectName, setProjectName] = useState('Mi Circuito de Rust');
-  const [projectPassword, setProjectPassword] = useState('');
-  const [currentProjectId, setCurrentProjectId] = useState(null);
-  const [isReadOnly, setIsReadOnly] = useState(false);
-  
-  // Estados Locales y Modal
-  const [localUserId] = useState(getLocalUserId());
-  const [projects, setProjects] = useState([]);
-  const [showProjectsModal, setShowProjectsModal] = useState(false);
-  const [showUnlockModal, setShowUnlockModal] = useState(false);
-  const [unlockInput, setUnlockInput] = useState('');
-  const [unlockError, setUnlockError] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  
-  const canvasRef = useRef(null);
-  
-  // Estado Interactivo de Cableado Avanzado con Puntos de Anclaje (Waypoints)
-  // connecting: { nodeId, portId, portType, isInput, waypoints: [{x, y}] }
-  const [connecting, setConnecting] = useState(null);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  
-  const [activeTool, setActiveTool] = useState('select');
-  const [draggingNodeId, setDraggingNodeId] = useState(null);
-  const [draggingType, setDraggingType] = useState(null); // 'node' | 'text'
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [wireColor, setWireColor] = useState('#3b82f6'); 
-  
-  // Cámara (Pan y Zoom)
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
-  const [startPanPos, setStartPanPos] = useState({ x: 0, y: 0 });
-
-  // Acordeones de Menú (Inician cerrados por defecto)
-  const [expandedCategories, setExpandedCategories] = useState({
-    generator: false,
-    storage: false,
-    logic: false,
-    device: false,
-    industrial: false,
-    liquid: false
-  });
-
-  // Cargar Proyectos desde LocalStorage al iniciar la aplicación
-  useEffect(() => {
-    const loadLocalProjects = () => {
-      const stored = localStorage.getItem('rust_planner_projects');
-      if (stored) {
-        setProjects(JSON.parse(stored));
-      }
-    };
-    loadLocalProjects();
-  }, []);
-
-  const toggleCategory = (catKey) => {
-    setExpandedCategories(prev => ({...prev, [catKey]: !prev[catKey]}));
-  };
-
-  const getLocalCoords = (clientX, clientY) => {
-    if (!canvasRef.current) return { x: 0, y: 0 };
-    const rect = canvasRef.current.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left - pan.x) / zoom,
-      y: (clientY - rect.top - pan.y) / zoom
-    };
-  };
-
-  const getPortCoordinates = (nodeId, portId, isInput) => {
-    const node = nodes.find(n => n.id === nodeId);
-    if (!node) return null;
-    
-    const portsList = isInput ? node.data.inputs : node.data.outputs;
-    const portIndex = portsList.findIndex(p => p.id === portId);
-    if (portIndex === -1) return null;
-    
-    /* 
-      Cálculos milimétricos basados en Tailwind:
-      - Header height = 41px (p-2 + h-6 + border)
-      - Padding Top Body = 8px
-      - Tamaño puerto = 14px (h-3.5) con Gap = 10px (gap-2.5)
-      - offset centro puerto Y = 56px + (indice * 24px)
-      - X offset: Input (-5px), Output (165px para caja de 160px)
-    */
-    const yOffset = 56 + (portIndex * 24);
-    const xOffset = isInput ? -5 : 165;
-
-    return {
-      x: node.x + xOffset,
-      y: node.y + yOffset
-    };
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        setConnecting(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const handleCanvasMouseDown = (e) => {
-    // Si estamos haciendo clic con botón secundario (derecho), cancelar cableado
-    if (e.button === 2) {
-      e.preventDefault();
-      setConnecting(null);
-      return;
-    }
-
-    if (activeTool === 'pan' || e.button === 1 || isReadOnly) {
-      setIsPanning(true);
-      setStartPanPos({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-      return;
-    }
-
-    const local = getLocalCoords(e.clientX, e.clientY);
-
-    // Si estamos en medio de una conexión de cable y hacemos clic en el canvas vacío, añadir un codo (waypoint)
-    if (connecting) {
-      setConnecting(prev => ({
-        ...prev,
-        waypoints: [...(prev.waypoints || []), { x: local.x, y: local.y }]
-      }));
-      return;
-    }
-
-    if (activeTool === 'text') {
-      setTexts([...texts, { id: generateId(), x: local.x, y: local.y, content: 'Escribe tu nota...' }]);
-      setActiveTool('select');
-    } 
-    else if (RUST_COMPONENTS[activeTool]) {
-      const compDef = RUST_COMPONENTS[activeTool];
-      setNodes([...nodes, {
-        id: generateId(),
-        type: activeTool,
-        x: local.x - 80, 
-        y: local.y - 40,
-        data: compDef
-      }]);
-      setActiveTool('select');
-    }
-  };
-
-  const handleMouseMove = (e) => {
-    if (isPanning) {
-      setPan({ x: e.clientX - startPanPos.x, y: e.clientY - startPanPos.y });
-      return;
-    }
-
-    const local = getLocalCoords(e.clientX, e.clientY);
-    setMousePos(local);
-
-    if (draggingNodeId) {
-      if (draggingType === 'node') {
-        setNodes(nodes.map(node => 
-          node.id === draggingNodeId 
-            ? { ...node, x: local.x - dragOffset.x, y: local.y - dragOffset.y }
-            : node
-        ));
-      } else if (draggingType === 'text') {
-        setTexts(texts.map(text => 
-          text.id === draggingNodeId 
-            ? { ...text, x: local.x - dragOffset.x, y: local.y - dragOffset.y }
-            : text
-        ));
-      }
-    }
-  };
-
-  const handleMouseUp = () => {
-    setDraggingNodeId(null);
-    setDraggingType(null);
-    setIsPanning(false);
-  };
-
-  const handlePortMouseDown = (e, nodeId, portId, portType, isInput) => {
-    e.stopPropagation();
-    if (activeTool === 'delete') return;
-
-    // Si no estábamos conectando nada, iniciar la traza del cable
-    if (!connecting) {
-      setConnecting({ nodeId, portId, portType, isInput, waypoints: [] });
-    } else {
-      // Si ya estábamos en modo de traza y hacemos clic en el puerto final
-      handlePortMouseUp(e, nodeId, portId, portType, isInput);
-    }
-  };
-
-  const handlePortMouseUp = (e, nodeId, portId, portType, isInput) => {
-    e.stopPropagation();
-    if (!connecting) return;
-    
-    // Evitar conectar a sí mismo, a tipos incompatibles o mismo sentido (in->in o out->out)
-    if (connecting.nodeId === nodeId || connecting.portType !== portType || connecting.isInput === isInput) {
-      // Si es un clic erróneo en otro puerto, no cancelar de inmediato si el usuario quería añadir un waypoint cerca
-      return;
-    }
-
-    const startNodeId = connecting.isInput ? nodeId : connecting.nodeId;
-    const startPortId = connecting.isInput ? portId : connecting.portId;
-    const endNodeId = connecting.isInput ? connecting.nodeId : nodeId;
-    const endPortId = connecting.isInput ? connecting.portId : portId;
-
-    // Si la traza empezó en un Input, invertir los waypoints para que sigan el sentido de salida a entrada
-    const finalWaypoints = connecting.isInput 
-      ? [...(connecting.waypoints || [])].reverse()
-      : (connecting.waypoints || []);
-
-    // Evitar duplicados en la misma entrada
-    if (connections.find(c => c.endNodeId === endNodeId && c.endPortId === endPortId)) {
-      setConnecting(null);
-      return;
-    }
-
-    setConnections([...connections, {
-      id: generateId(),
-      startNodeId, startPortId,
-      endNodeId, endPortId,
-      portType: connecting.portType,
-      color: wireColor,
-      waypoints: finalWaypoints
-    }]);
-    
-    setConnecting(null);
-  };
-
-  const handleNodeClick = (e, id) => {
-    e.stopPropagation();
-    if (isReadOnly) return;
-    if (activeTool === 'delete') {
-      setNodes(nodes.filter(n => n.id !== id));
-      setConnections(connections.filter(c => c.startNodeId !== id && c.endNodeId !== id));
-    }
-  };
-
-  const handleTextClick = (e, id) => {
-    e.stopPropagation();
-    if (isReadOnly) return;
-    if (activeTool === 'delete') {
-      setTexts(texts.filter(t => t.id !== id));
-    }
-  };
-
-  const handleTextChange = (id, newContent) => {
-    setTexts(texts.map(t => t.id === id ? { ...t, content: newContent } : t));
-  };
-
-  // --- FUNCIONES DE PROYECTOS LOCALES Y EXPORTACIÓN ---
-  const saveProject = () => {
-    if (isReadOnly) return;
-    setIsSaving(true);
-    try {
-      const projectId = currentProjectId || generateId();
-      const projectData = {
-        id: projectId,
-        name: projectName,
-        password: projectPassword,
-        creatorId: localUserId,
-        nodes,
-        connections,
-        texts,
-        updatedAt: new Date().toISOString()
-      };
-      
-      const existing = JSON.parse(localStorage.getItem('rust_planner_projects') || '[]');
-      const filtered = existing.filter(p => p.id !== projectId);
-      filtered.push(projectData);
-      localStorage.setItem('rust_planner_projects', JSON.stringify(filtered));
-      
-      setProjects(filtered);
-      setCurrentProjectId(projectId);
-    } catch (error) {
-      console.error("Error guardando el proyecto localmente:", error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const exportProject = (projectToExport) => {
-    const projectData = {
-      name: projectToExport.name,
-      password: projectToExport.password,
-      creatorId: projectToExport.creatorId,
-      nodes: projectToExport.nodes,
-      connections: projectToExport.connections,
-      texts: projectToExport.texts,
-      version: '1.0'
-    };
-    const blob = new Blob([JSON.stringify(projectData, null, 2)], {type: "application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${projectToExport.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'proyecto'}.rustplan`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const importProject = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target.result);
-        if (data.nodes && data.connections) {
-          
-          // Generamos un nuevo ID y lo añadimos directamente a tu librería local
-          const newProject = {
-            id: generateId(),
-            name: data.name || 'Proyecto Importado',
-            password: data.password || '',
-            creatorId: data.creatorId || localUserId, 
-            nodes: data.nodes,
-            connections: data.connections,
-            texts: data.texts || [],
-            updatedAt: new Date().toISOString()
-          };
-          
-          const existing = JSON.parse(localStorage.getItem('rust_planner_projects') || '[]');
-          const updatedProjects = [...existing, newProject];
-          
-          localStorage.setItem('rust_planner_projects', JSON.stringify(updatedProjects));
-          setProjects(updatedProjects);
-          
-          // Cargamos el proyecto automáticamente para verlo
-          loadProject(newProject);
-        }
-      } catch (err) {
-        console.error("Error al importar el archivo, formato inválido.");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = ''; // Limpiar el input
-  };
-
-  const loadProject = (project) => {
-    setNodes(project.nodes || []);
-    setConnections(project.connections || []);
-    setTexts(project.texts || []);
-    setProjectName(project.name || 'Proyecto Cargado');
-    setProjectPassword(project.password || '');
-    setCurrentProjectId(project.id);
-    setShowProjectsModal(false);
-    setPan({ x: 0, y: 0 });
-    setZoom(1);
-    setConnecting(null);
-    
-    // Chequear permisos de edición locales
-    if (project.creatorId !== localUserId && project.password) {
-      setIsReadOnly(true);
-      setActiveTool('pan');
-    } else {
-      setIsReadOnly(false);
-    }
-  };
-
-  const newProject = () => {
-    setNodes([]);
-    setConnections([]);
-    setTexts([]);
-    setProjectName('Nuevo Proyecto');
-    setProjectPassword('');
-    setCurrentProjectId(null);
-    setShowProjectsModal(false);
-    setPan({ x: 0, y: 0 });
-    setZoom(1);
-    setConnecting(null);
-    setIsReadOnly(false);
-  };
-
-  const deleteProject = (projectId, projCreatorId) => {
-    if (projCreatorId !== localUserId) return; // Protección de seguridad visual
-    try {
-      const existing = JSON.parse(localStorage.getItem('rust_planner_projects') || '[]');
-      const filtered = existing.filter(p => p.id !== projectId);
-      localStorage.setItem('rust_planner_projects', JSON.stringify(filtered));
-      setProjects(filtered);
-      
-      if (currentProjectId === projectId) {
-         setCurrentProjectId(null);
-      }
-    } catch (error) {
-      console.error("Error borrando el proyecto:", error);
-    }
-  };
-  // --------------------------------
-
-  const renderPathD = (start, waypoints, end) => {
-    let d = `M ${start.x} ${start.y}`;
-    waypoints.forEach(wp => {
-      d += ` L ${wp.x} ${wp.y}`;
-    });
-    d += ` L ${end.x} ${end.y}`;
-    return d;
-  };
-
-  return (
-    <div className="flex h-screen w-full bg-slate-950 text-slate-200 font-sans overflow-hidden select-none">
-      
-      {/* PANEL LATERAL DE HERRAMIENTAS Y COMPONENTES */}
-      <div className="w-80 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-2xl relative">
-        <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex flex-col gap-3">
-          <div>
-            <h1 className="text-lg font-black tracking-wide text-orange-500 flex items-center gap-2 uppercase">
-              <Zap size={20} className="fill-orange-500 text-orange-500" /> Rust Planner
-            </h1>
-            <input 
-              type="text" 
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              disabled={isReadOnly}
-              className="bg-transparent text-slate-300 text-xs mt-1 w-full border-b border-transparent hover:border-slate-700 focus:border-orange-500 focus:outline-none transition-colors px-1 py-0.5 disabled:opacity-50"
-              placeholder="Nombre del proyecto..."
-            />
-            {!isReadOnly && (
-              <input 
-                type="password" 
-                value={projectPassword}
-                onChange={(e) => setProjectPassword(e.target.value)}
-                className="bg-transparent text-slate-400 text-[10px] mt-1 w-full border-b border-transparent hover:border-slate-700 focus:border-orange-500 focus:outline-none transition-colors px-1 py-0.5"
-                placeholder="Contraseña del creador (Opcional)..."
-              />
-            )}
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <button 
-                onClick={saveProject}
-                disabled={isSaving || isReadOnly}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold uppercase py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-md"
-              >
-                <Save size={14} /> Guardar
-              </button>
-              <button 
-                onClick={() => setShowProjectsModal(true)}
-                className="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold uppercase py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-colors shadow-lg"
-              >
-                <FolderOpen size={14} /> Proyectos
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar relative">
-          
-          {isReadOnly && (
-             <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-[1px] cursor-not-allowed flex items-center justify-center">
-                <div className="bg-slate-950/90 text-slate-300 text-xs font-bold px-4 py-2 rounded border border-slate-800 shadow-xl flex items-center gap-2">
-                   <Lock size={14} className="text-red-500" /> Modo Lectura
-                </div>
-             </div>
-          )}
-          
-          {/* Herramientas Principales */}
-          <div>
-            <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Herramientas</h2>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button 
-                onClick={() => { setActiveTool('select'); setConnecting(null); }} 
-                className={`p-2 rounded-md flex flex-col items-center justify-center gap-1 transition ${activeTool === 'select' ? 'bg-orange-600 text-white font-semibold shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}
-              >
-                <MousePointer2 size={16} />
-                <span className="text-[10px]">Cursor</span>
-              </button>
-              <button 
-                onClick={() => { setActiveTool('pan'); setConnecting(null); }} 
-                className={`p-2 rounded-md flex flex-col items-center justify-center gap-1 transition ${activeTool === 'pan' ? 'bg-orange-600 text-white font-semibold shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}
-              >
-                <Hand size={16} />
-                <span className="text-[10px]">Mover Lienzo</span>
-              </button>
-              <button 
-                onClick={() => { setActiveTool('text'); setConnecting(null); }} 
-                className={`p-2 rounded-md flex flex-col items-center justify-center gap-1 transition ${activeTool === 'text' ? 'bg-orange-600 text-white font-semibold shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}
-              >
-                <Type size={16} />
-                <span className="text-[10px]">Añadir Nota</span>
-              </button>
-              <button 
-                onClick={() => { setActiveTool('delete'); setConnecting(null); }} 
-                className={`p-2 rounded-md flex flex-col items-center justify-center gap-1 transition ${activeTool === 'delete' ? 'bg-red-600 text-white font-semibold shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}
-              >
-                <Trash2 size={16} />
-                <span className="text-[10px]">Borrar</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Paleta de Colores para Cables */}
-          <div className="bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/80">
-            <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Palette size={12}/> Color de Cable Activo
-            </h2>
-            <div className="flex flex-wrap gap-1.5">
-              {WIRE_COLORS.map(color => (
-                <button
-                  key={color}
-                  onClick={() => setWireColor(color)}
-                  className={`w-6 h-6 rounded-full border-2 transition-transform ${wireColor === color ? 'border-white scale-125 shadow-md z-10' : 'border-transparent hover:scale-110 opacity-80'}`}
-                  style={{ backgroundColor: color }}
-                  title={`Seleccionar color ${color}`}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="w-full h-px bg-slate-800 my-1"></div>
-
-          {/* Acordeones de Categorías */}
-          {Object.entries(CATEGORIES).map(([catKey, category]) => (
-            <div key={catKey} className="rounded-lg overflow-hidden border border-slate-800/60 bg-slate-950/30">
-              <button 
-                onClick={() => toggleCategory(catKey)}
-                className="w-full flex items-center justify-between p-2.5 bg-slate-900 hover:bg-slate-800/80 transition-colors text-left"
-              >
-                <div className={`flex items-center gap-2 ${category.color} font-bold text-xs tracking-wide`}>
-                  {category.icon} {category.name}
-                </div>
-                {expandedCategories[catKey] ? <ChevronDown size={14} className="text-slate-400"/> : <ChevronRight size={14} className="text-slate-400"/>}
-              </button>
-              
-              {expandedCategories[catKey] && (
-                <div className="grid grid-cols-2 gap-1.5 p-2 bg-slate-950/40">
-                  {Object.entries(RUST_COMPONENTS)
-                    .filter(([_, comp]) => comp.category === catKey)
-                    .map(([key, comp]) => (
-                    <button
-                      key={key}
-                      onClick={() => { setActiveTool(key); setConnecting(null); }}
-                      className={`p-2 rounded-md border flex flex-col items-center text-center transition-all ${
-                        activeTool === key 
-                          ? `bg-slate-800 ${category.border} border-2 shadow-lg ring-1 ring-orange-500/50` 
-                          : 'bg-slate-900 border-slate-800 hover:border-slate-700 hover:bg-slate-800/60'
-                      }`}
-                      title={`Añadir ${comp.name}`}
-                    >
-                      <div className="w-10 h-10 mb-1 flex items-center justify-center p-0.5">
-                        <ComponentImage imgSlug={comp.img} name={comp.name} category={comp.category} />
-                      </div>
-                      <span className="text-[10px] leading-tight text-slate-300 font-medium truncate w-full">{comp.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-
-        </div>
-      </div>
-
-      {/* LIENZO PRINCIPAL (CANVAS) */}
-      <div 
-        ref={canvasRef}
-        className={`flex-1 relative bg-slate-950 overflow-hidden ${
-          activeTool === 'pan' || isPanning 
-            ? 'cursor-grab active:cursor-grabbing' 
-            : connecting 
-            ? 'cursor-crosshair' 
-            : 'cursor-default'
-        }`}
-        style={{
-          backgroundImage: 'radial-gradient(#1e293b 1.5px, transparent 1.5px)',
-          backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
-          backgroundPosition: `${pan.x}px ${pan.y}px`
-        }}
-        onMouseDown={handleCanvasMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onContextMenu={(e) => e.preventDefault()}
-      >
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust Circuit & Industrial Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
         
-        {/* CONTENEDOR VIRTUAL TRANSFORMABLE */}
-        <div 
-          className="absolute inset-0 pointer-events-none"
-          style={{ 
-            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, 
-            transformOrigin: '0 0' 
-          }}
-        >
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
 
-          {/* CAPA DE DISPOSITIVOS Y NODOS (z-20) */}
-          {nodes.map(node => (
-            <div 
-              key={node.id}
-              className={`absolute w-40 rounded-lg border shadow-2xl z-20 transition-colors pointer-events-auto ${CATEGORIES[node.data.category]?.border || 'border-slate-600'} ${CATEGORIES[node.data.category]?.bg || 'bg-slate-900'} ${activeTool === 'delete' ? 'hover:border-red-500 hover:ring-2 hover:ring-red-500/50 cursor-pointer' : 'cursor-move'}`}
-              style={{ left: node.x, top: node.y }}
-              onMouseDown={(e) => { 
-                if (connecting) return; // Permitir que el clic pase para waypoints
-                e.stopPropagation(); 
-                if (isReadOnly) return; // Bloquear movimiento si es solo lectura
-                if(activeTool === 'select') {
-                  const local = getLocalCoords(e.clientX, e.clientY);
-                  setDragOffset({ x: local.x - node.x, y: local.y - node.y });
-                  setDraggingType('node');
-                  setDraggingNodeId(node.id); 
-                }
-              }}
-              onClick={(e) => handleNodeClick(e, node.id)}
-            >
-              {/* Header del Dispositivo */}
-              <div className="flex items-center gap-2 p-2 border-b border-slate-800 bg-slate-950/80 rounded-t-lg">
-                <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center bg-slate-900 rounded border border-slate-800">
-                  <ComponentImage imgSlug={node.data.img} name={node.data.name} category={node.data.category} />
-                </div>
-                <span className="text-[11px] font-bold text-slate-200 truncate leading-tight">{node.data.name}</span>
-              </div>
-              
-              {/* Cuerpo y Puertos */}
-              <div className="p-2 relative min-h-[36px]">
-                {/* Entradas (Izquierda) */}
-                <div className="absolute left-0 top-2 bottom-2 flex flex-col gap-2.5 -ml-3 z-30">
-                  {node.data.inputs.map(port => {
-                    const isLiquid = port.type === 'liquid';
-                    const isIndustrial = port.type === 'industrial';
-                    const portColor = isLiquid ? 'bg-cyan-400' : isIndustrial ? 'bg-orange-500' : 'bg-yellow-400';
-                    const isConnectingThis = connecting && connecting.nodeId === node.id && connecting.portId === port.id;
-                    return (
-                      <div 
-                        key={port.id}
-                        className={`w-3.5 h-3.5 ${portColor} rounded-full border-2 border-slate-950 cursor-pointer hover:scale-150 transition-transform shadow-md ${isConnectingThis ? 'ring-2 ring-white scale-125 animate-pulse' : ''}`}
-                        title={`${port.name} (Entrada)`}
-                        onMouseDown={(e) => { if(!isReadOnly) handlePortMouseDown(e, node.id, port.id, port.type, true) }}
-                        onMouseUp={(e) => { if(!isReadOnly) handlePortMouseUp(e, node.id, port.id, port.type, true) }}
-                      />
-                    );
-                  })}
-                </div>
-                
-                {/* Salidas (Derecha) */}
-                <div className="absolute right-0 top-2 bottom-2 flex flex-col gap-2.5 -mr-3 z-30">
-                  {node.data.outputs.map(port => {
-                    const isLiquid = port.type === 'liquid';
-                    const isIndustrial = port.type === 'industrial';
-                    const portColor = isLiquid ? 'bg-cyan-400' : isIndustrial ? 'bg-orange-500' : 'bg-blue-500';
-                    const isConnectingThis = connecting && connecting.nodeId === node.id && connecting.portId === port.id;
-                    return (
-                      <div 
-                        key={port.id}
-                        className={`w-3.5 h-3.5 ${portColor} rounded-full border-2 border-slate-950 cursor-pointer hover:scale-150 transition-transform shadow-md ${isConnectingThis ? 'ring-2 ring-white scale-125 animate-pulse' : ''}`}
-                        title={`${port.name} (Salida)`}
-                        onMouseDown={(e) => { if(!isReadOnly) handlePortMouseDown(e, node.id, port.id, port.type, false) }}
-                        onMouseUp={(e) => { if(!isReadOnly) handlePortMouseUp(e, node.id, port.id, port.type, false) }}
-                      />
-                    );
-                  })}
-                </div>
-                
-                {/* Salidas (Derecha) */}
-                <div className="absolute right-0 top-2 bottom-2 flex flex-col gap-2.5 -mr-3 z-30">
-                  {node.data.outputs.map(port => {
-                    const isLiquid = port.type === 'liquid';
-                    const isIndustrial = port.type === 'industrial';
-                    const portColor = isLiquid ? 'bg-cyan-400' : isIndustrial ? 'bg-orange-500' : 'bg-blue-500';
-                    const isConnectingThis = connecting && connecting.nodeId === node.id && connecting.portId === port.id;
-                    return (
-                      <div 
-                        key={port.id}
-                        className={`w-3.5 h-3.5 ${portColor} rounded-full border-2 border-slate-950 cursor-pointer hover:scale-150 transition-transform shadow-md ${isConnectingThis ? 'ring-2 ring-white scale-125 animate-pulse' : ''}`}
-                        title={`${port.name} (Salida)`}
-                        onMouseDown={(e) => handlePortMouseDown(e, node.id, port.id, port.type, false)}
-                        onMouseUp={(e) => handlePortMouseUp(e, node.id, port.id, port.type, false)}
-                      />
-                    );
-                  })}
-                </div>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5); 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8); 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 1); 
+        }
 
-                {/* Etiquetas de texto de puertos */}
-                <div className="flex justify-between w-full h-full text-slate-400 pointer-events-none text-[9px] font-mono">
-                   <div className="flex flex-col gap-2.5 pl-1">
-                      {node.data.inputs.map(p => <div key={p.id} className="h-3.5 flex items-center leading-none truncate max-w-[65px]">{p.name}</div>)}
-                   </div>
-                   <div className="flex flex-col gap-2.5 pr-1 text-right">
-                      {node.data.outputs.map(p => <div key={p.id} className="h-3.5 flex items-center justify-end leading-none truncate max-w-[65px]">{p.name}</div>)}
-                   </div>
-                </div>
-              </div>
+        .canvas-bg {
+            background-image: radial-gradient(#1e293b 1.5px, transparent 1.5px);
+        }
+
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        
+        .wire-interactive:hover {
+            stroke: #ef4444;
+            opacity: 1 !important;
+        }
+        
+        .textarea-nodrag {
+            user-select: text;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 h-screen w-full flex">
+
+    <aside class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-2xl relative flex-shrink-0">
+        <!-- Cabecera del Panel -->
+        <div class="p-4 border-b border-slate-800 bg-slate-950/60 flex flex-col gap-3">
+            <div>
+                <h1 class="text-lg font-black tracking-wide text-orange-500 flex items-center gap-2 uppercase">
+                    <i data-lucide="zap" class="fill-orange-500 text-orange-500 w-5 h-5"></i> Rust Planner
+                </h1>
+                <input type="text" id="project-name" value="Mi Circuito de Rust" class="bg-transparent text-slate-300 text-xs mt-1 w-full border-b border-transparent hover:border-slate-700 focus:border-orange-500 focus:outline-none transition-colors px-1 py-0.5" placeholder="Nombre del proyecto...">
+                <input type="password" id="project-password" class="bg-transparent text-slate-400 text-[10px] mt-1 w-full border-b border-transparent hover:border-slate-700 focus:border-orange-500 focus:outline-none transition-colors px-1 py-0.5" placeholder="Contraseña de edición (Opcional)...">
             </div>
-          ))}
+            <div class="flex gap-2">
+                <button id="btn-save" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold uppercase py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-colors shadow-md">
+                    <i data-lucide="save" class="w-3.5 h-3.5"></i> Guardar
+                </button>
+                <button id="btn-projects" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold uppercase py-2 px-3 rounded flex items-center justify-center gap-1.5 transition-colors shadow-lg">
+                    <i data-lucide="folder-open" class="w-3.5 h-3.5"></i> Proyectos
+                </button>
+            </div>
+        </div>
 
-          {/* CAPA DE CABLES Y TRAZADOS (z-30: POR ENCIMA DE LOS NODOS COMO EN EL JUEGO) */}
-          <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-30 overflow-visible">
-            {connections.map(conn => {
-              const start = getPortCoordinates(conn.startNodeId, conn.startPortId, false);
-              const end = getPortCoordinates(conn.endNodeId, conn.endPortId, true);
-              if (!start || !end) return null;
-              
-              const pathD = renderPathD(start, conn.waypoints || [], end);
-              
-              return (
-                <g key={conn.id} className="group">
-                  {/* Borde negro grueso posterior para visibilidad perfecta sobre cualquier objeto */}
-                  <path
-                    d={pathD}
-                    fill="none"
-                    stroke="#020617"
-                    strokeWidth={conn.portType === 'electric' ? 6 : 8}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  
-                  {/* Cable Visible Principal */}
-                  <path
-                    d={pathD}
-                    fill="none"
-                    stroke={conn.color || '#3b82f6'}
-                    strokeWidth={conn.portType === 'electric' ? 3.5 : 5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className={activeTool === 'delete' && !isReadOnly ? 'cursor-pointer pointer-events-auto hover:stroke-red-500 transition-all' : 'pointer-events-auto cursor-pointer'}
-                    onClick={(e) => {
-                      if (isReadOnly) return;
-                      if (activeTool === 'delete') {
-                        e.stopPropagation();
-                        setConnections(connections.filter(c => c.id !== conn.id));
-                      } else if (activeTool === 'select') {
-                        e.stopPropagation();
-                        setConnections(connections.map(c => c.id === conn.id ? {...c, color: wireColor} : c));
-                      }
-                    }}
-                  />
-
-                  {/* Codos / Waypoints visibles en el cable */}
-                  {(conn.waypoints || []).map((wp, idx) => (
-                    <circle
-                      key={idx}
-                      cx={wp.x}
-                      cy={wp.y}
-                      r={3}
-                      fill={conn.color || '#3b82f6'}
-                      stroke="#020617"
-                      strokeWidth={1.5}
-                    />
-                  ))}
-                </g>
-              );
-            })}
+        <!-- Contenedor scrolleable del menú -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar relative" id="sidebar-tools">
             
-            {/* Cable que se está trazando activamente con clics manuales */}
-            {connecting && (
-              <g>
-                {(() => {
-                  const start = getPortCoordinates(connecting.nodeId, connecting.portId, connecting.isInput);
-                  if (!start) return null;
-                  
-                  const currentWaypoints = connecting.waypoints || [];
-                  const pathD = renderPathD(start, currentWaypoints, mousePos);
-                  
-                  return (
-                    <>
-                      {/* Borde negro del borrador de cable */}
-                      <path
-                        d={pathD}
-                        fill="none"
-                        stroke="#000000"
-                        strokeWidth={connecting.portType === 'electric' ? 6 : 8}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        opacity={0.6}
-                      />
-                      {/* Línea color punteada de avance */}
-                      <path
-                        d={pathD}
-                        fill="none"
-                        stroke={wireColor}
-                        strokeWidth={connecting.portType === 'electric' ? 3.5 : 5}
-                        strokeDasharray="6,4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        opacity={0.9}
-                      />
-                      {/* Puntos fijados (Codos) */}
-                      {currentWaypoints.map((wp, i) => (
-                        <circle key={i} cx={wp.x} cy={wp.y} r={4} fill="#ffffff" stroke={wireColor} strokeWidth={2} />
-                      ))}
-                    </>
-                  );
-                })()}
-              </g>
-            )}
-          </svg>
-
-          {/* NOTAS TEXTUALES Y ANOTACIONES (z-40) */}
-          {texts.map(text => (
-            <div 
-              key={text.id}
-              className={`absolute z-40 p-2 min-w-[220px] pointer-events-auto rounded-lg ${activeTool === 'delete' ? 'hover:ring-2 hover:ring-red-500 cursor-pointer' : 'cursor-move bg-slate-900/60 hover:bg-slate-900/90 transition-colors border border-slate-700/80 shadow-2xl backdrop-blur-sm'}`}
-              style={{ left: text.x, top: text.y }}
-              onClick={(e) => handleTextClick(e, text.id)}
-              onMouseDown={(e) => {
-                if (activeTool === 'delete' || activeTool === 'pan' || connecting || isReadOnly) return;
-                e.stopPropagation();
-                if (activeTool === 'select') {
-                  const local = getLocalCoords(e.clientX, e.clientY);
-                  setDragOffset({ x: local.x - text.x, y: local.y - text.y });
-                  setDraggingType('text');
-                  setDraggingNodeId(text.id);
-                }
-              }}
-            >
-               <textarea 
-                 className="w-full bg-slate-950/90 text-yellow-300 font-mono text-xs p-2.5 rounded border border-slate-700 focus:border-yellow-500 focus:outline-none transition-colors resize-both"
-                 value={text.content}
-                 onChange={(e) => handleTextChange(text.id, e.target.value)}
-                 placeholder="Escribe la explicación del circuito..."
-                 rows={3}
-                 disabled={activeTool === 'delete' || activeTool === 'pan' || isReadOnly}
-                 onMouseDown={(e) => e.stopPropagation()} 
-               />
+            <!-- Bloqueo de Lectura (Oculto por defecto) -->
+            <div id="read-only-overlay" class="hidden absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-[1px] cursor-not-allowed flex items-center justify-center">
+                <div class="bg-slate-950/90 text-slate-300 text-xs font-bold px-4 py-2 rounded border border-slate-800 shadow-xl flex items-center gap-2">
+                    <i data-lucide="lock" class="text-red-500 w-3.5 h-3.5"></i> Modo Lectura
+                </div>
             </div>
-          ))}
 
-        </div> {/* FIN CONTENEDOR TRANSFORMABLE */}
+            <!-- Herramientas Globales -->
+            <div>
+                <h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Herramientas</h2>
+                <div class="grid grid-cols-2 gap-1.5" id="tool-buttons"></div>
+            </div>
 
-        {/* HUD MODO LECTURA */}
-        {isReadOnly && (
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-5 py-2.5 rounded-full border border-red-400 font-medium text-xs shadow-2xl z-50 flex items-center gap-3">
-            <Lock size={16} />
-            <span><strong>Modo Exploración:</strong> Solo lectura.</span>
-            <button 
-              onClick={() => { setShowUnlockModal(true); setUnlockError(false); }}
-              className="bg-red-800 hover:bg-red-900 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded transition shadow-md flex items-center gap-1"
-            >
-              <Unlock size={12} /> Desbloquear
-            </button>
-          </div>
-        )}
+            <!-- Paleta de Colores -->
+            <div class="bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/80">
+                <h2 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <i data-lucide="palette" class="w-3 h-3"></i> Color de Cable Activo
+                </h2>
+                <div class="flex flex-wrap gap-1.5" id="color-palette"></div>
+            </div>
 
-        {/* HUD INFORMATIVO DE CABLEADO ACTIVO */}
-        {connecting && !isReadOnly && (
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-blue-600/95 text-white px-5 py-2.5 rounded-full border border-blue-400 font-medium text-xs shadow-2xl z-50 flex items-center gap-3 animate-bounce">
-            <Zap size={16} className="text-yellow-300 animate-pulse" />
+            <div class="w-full h-px bg-slate-800 my-1"></div>
+
+            <!-- Categorías de Dispositivos -->
+            <div id="categories-container" class="space-y-2"></div>
+        </div>
+    </aside>
+
+    <main class="flex-1 relative bg-slate-950 overflow-hidden canvas-bg" id="canvas-wrapper">
+        
+        <!-- Capa Transformable (Zoom y Pan) -->
+        <div id="canvas-transform" class="absolute inset-0 origin-top-left pointer-events-none">
+            
+            <!-- SVG para los cables (Va debajo de los nodos) -->
+            <svg id="wires-layer" class="absolute top-0 left-0 w-full h-full pointer-events-none z-10 overflow-visible"></svg>
+            
+            <!-- Contenedor para Nodos y Textos -->
+            <div id="nodes-layer" class="absolute top-0 left-0 w-full h-full pointer-events-none z-20"></div>
+
+            <!-- SVG para el cable temporal -->
+            <svg id="active-wire-layer" class="absolute top-0 left-0 w-full h-full pointer-events-none z-30 overflow-visible"></svg>
+
+        </div>
+
+        <!-- Interfaz Flotante sobre el lienzo -->
+        <div id="tool-indicator" class="absolute top-6 right-6 bg-slate-900/90 px-4 py-2 rounded-full border border-slate-800 text-xs font-mono text-slate-300 shadow-2xl pointer-events-none z-40 flex items-center gap-2">
+            Herramienta: <span id="current-tool-text" class="text-orange-400 font-bold uppercase tracking-wider">select</span>
+        </div>
+
+        <div id="zoom-controls" class="absolute bottom-6 right-6 flex items-center gap-1 bg-slate-900/95 p-1.5 rounded-xl border border-slate-800 shadow-2xl z-50">
+            <button id="btn-zoom-out" class="text-slate-300 hover:text-white hover:bg-slate-800 p-2 rounded-lg transition" title="Alejar"><i data-lucide="zoom-out" class="w-4.5 h-4.5"></i></button>
+            <button id="btn-zoom-reset" class="text-slate-300 font-mono text-xs hover:text-white hover:bg-slate-800 px-3 py-2 rounded-lg transition w-16 text-center" title="Restablecer Vista">100%</button>
+            <button id="btn-zoom-in" class="text-slate-300 hover:text-white hover:bg-slate-800 p-2 rounded-lg transition" title="Acercar"><i data-lucide="zoom-in" class="w-4.5 h-4.5"></i></button>
+        </div>
+        
+        <!-- Carteles de Aviso Centrales -->
+        <div id="wiring-alert" class="hidden absolute top-6 left-1/2 -translate-x-1/2 bg-blue-600/95 text-white px-5 py-2.5 rounded-full border border-blue-400 font-medium text-xs shadow-2xl z-50 items-center gap-3 animate-bounce">
+            <i data-lucide="zap" class="text-yellow-300 animate-pulse w-4 h-4"></i>
             <span><strong>Modo Cableado:</strong> Clic en el fondo para fijar un codo. Clic en puerto destino para terminar.</span>
-            <button 
-              onClick={() => setConnecting(null)}
-              className="bg-blue-800 hover:bg-blue-900 text-white font-bold text-[10px] uppercase px-2 py-1 rounded transition"
-            >
-              Cancelar (ESC)
+            <button id="btn-cancel-wire" class="bg-blue-800 hover:bg-blue-900 text-white font-bold text-[10px] uppercase px-2 py-1 rounded transition">Cancelar (ESC)</button>
+        </div>
+
+        <div id="readonly-alert" class="hidden absolute top-6 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-5 py-2.5 rounded-full border border-red-400 font-medium text-xs shadow-2xl z-50 items-center gap-3">
+            <i data-lucide="lock" class="w-4 h-4"></i>
+            <span><strong>Modo Exploración:</strong> Solo lectura.</span>
+            <button id="btn-show-unlock" class="bg-red-800 hover:bg-red-900 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded transition shadow-md flex items-center gap-1">
+                <i data-lucide="unlock" class="w-3 h-3"></i> Desbloquear
             </button>
-          </div>
-        )}
-
-        {/* CONTROLES DE ZOOM FLOTANTES */}
-        <div className="absolute bottom-6 right-6 flex items-center gap-1 bg-slate-900/95 p-1.5 rounded-xl border border-slate-800 shadow-2xl z-50">
-          <button onClick={() => setZoom(z => Math.max(0.2, z - 0.2))} className="text-slate-300 hover:text-white hover:bg-slate-800 p-2 rounded-lg transition" title="Alejar"><ZoomOut size={18}/></button>
-          <button onClick={() => { setZoom(1); setPan({x: 0, y: 0}); }} className="text-slate-300 font-mono text-xs hover:text-white hover:bg-slate-800 px-3 py-2 rounded-lg transition w-16 text-center" title="Restablecer Vista">
-            {Math.round(zoom * 100)}%
-          </button>
-          <button onClick={() => setZoom(z => Math.min(3, z + 0.2))} className="text-slate-300 hover:text-white hover:bg-slate-800 p-2 rounded-lg transition" title="Acercar"><ZoomIn size={18}/></button>
         </div>
 
-        {/* INDICADOR DE HERRAMIENTA SELECCIONADA */}
-        <div className="absolute top-6 right-6 bg-slate-900/90 px-4 py-2 rounded-full border border-slate-800 text-xs font-mono text-slate-300 shadow-2xl pointer-events-none z-40 flex items-center gap-2">
-          Herramienta: <span className="text-orange-400 font-bold uppercase tracking-wider">{activeTool}</span>
-        </div>
+    </main>
 
-      </div>
-
-      {/* MODAL GESTOR DE PROYECTOS */}
-      {showProjectsModal && (
-        <div className="absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <FolderOpen size={20} className="text-orange-500" /> Mis Proyectos Guardados
-              </h2>
-              <button onClick={() => setShowProjectsModal(false)} className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-colors">
-                <X size={20} />
-              </button>
+    <!-- Modal de Proyectos -->
+    <div id="modal-projects" class="hidden absolute inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i data-lucide="folder-open" class="text-orange-500 w-5 h-5"></i> Mis Proyectos Guardados
+                </h2>
+                <button id="btn-close-projects" class="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
             </div>
             
-            <div className="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-end gap-2">
-              <label className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase py-2 px-4 rounded-md flex items-center gap-2 transition-colors shadow-md cursor-pointer border border-slate-700">
-                <Upload size={16} /> Importar Proyecto
-                <input type="file" accept=".json,.rustplan" className="hidden" onChange={importProject} />
-              </label>
-              <button onClick={newProject} className="bg-green-600 hover:bg-green-500 text-white text-xs font-bold uppercase py-2 px-4 rounded-md flex items-center gap-2 transition-colors shadow-lg border border-green-500/50">
-                <Plus size={16} /> Crear Nuevo
-              </button>
+            <div class="p-4 bg-slate-900/50 border-b border-slate-800 flex justify-end gap-2">
+                <label class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase py-2 px-4 rounded-md flex items-center gap-2 transition-colors shadow-md cursor-pointer border border-slate-700">
+                    <i data-lucide="upload" class="w-4 h-4"></i> Importar Proyecto
+                    <input type="file" id="input-import" accept=".json,.rustplan" class="hidden" />
+                </label>
+                <button id="btn-new-project" class="bg-green-600 hover:bg-green-500 text-white text-xs font-bold uppercase py-2 px-4 rounded-md flex items-center gap-2 transition-colors shadow-lg border border-green-500/50">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Crear Nuevo
+                </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-              {projects.length === 0 ? (
-                <div className="text-center py-10 text-slate-500 text-sm">
-                  No tienes proyectos guardados localmente. ¡Crea el primero o importa uno!
-                </div>
-              ) : (
-                projects.map(proj => {
-                  const isOwner = proj.creatorId === localUserId;
-                  return (
-                  <div key={proj.id} className="flex items-center justify-between bg-slate-800/50 border border-slate-700/50 p-4 rounded-lg hover:bg-slate-800 transition-colors group">
-                    <div>
-                      <h3 className="text-white font-bold text-sm mb-1 flex items-center gap-2">
-                         {proj.name} 
-                         {isOwner ? (
-                           <span className="text-[10px] font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">Mío</span>
-                         ) : (
-                           <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700 flex items-center gap-1"><Globe size={10}/> Importado</span>
-                         )}
-                         {proj.password && !isOwner && <Lock size={12} className="text-red-400" title="Protegido con contraseña" />}
-                      </h3>
-                      <div className="text-xs text-slate-400 flex gap-4">
-                        <span className="flex items-center gap-1"><Cpu size={12}/> {proj.nodes?.length || 0}</span>
-                        <span className="flex items-center gap-1"><GitFork size={12}/> {proj.connections?.length || 0}</span>
-                        <span className="flex items-center gap-1"><Type size={12}/> {proj.texts?.length || 0}</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => loadProject(proj)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md transition-colors text-xs font-bold uppercase flex items-center gap-1.5 shadow-md">
-                        <FolderOpen size={14} /> Abrir
-                      </button>
-                      <button onClick={() => exportProject(proj)} className="bg-slate-700 hover:bg-slate-600 text-slate-200 p-1.5 rounded-md transition-colors shadow-md" title="Descargar Proyecto (.rustplan)">
-                        <Download size={16} />
-                      </button>
-                      {isOwner && (
-                        <button onClick={() => deleteProject(proj.id, proj.creatorId)} className="bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white p-1.5 rounded-md transition-colors" title="Borrar Proyecto">
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )})
-              )}
-            </div>
-          </div>
+            <div id="projects-list" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar"></div>
         </div>
-      )}
-
-      {/* MODAL DESBLOQUEAR PROYECTO */}
-      {showUnlockModal && (
-        <div className="absolute inset-0 z-[120] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-           <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-6 w-full max-w-sm flex flex-col gap-4">
-             <h3 className="text-white font-bold flex items-center gap-2 text-lg">
-               <KeyRound size={20} className="text-orange-500"/> Desbloquear Proyecto
-             </h3>
-             <p className="text-xs text-slate-400 leading-relaxed">
-               Este proyecto pertenece a otro usuario. Si tienes la contraseña de edición, introdúcela abajo para habilitar las herramientas.
-             </p>
-             <div>
-               <input 
-                  type="password" 
-                  value={unlockInput} 
-                  onChange={e => setUnlockInput(e.target.value)} 
-                  className={`bg-slate-950 text-white border w-full p-2.5 rounded focus:outline-none transition-colors ${unlockError ? 'border-red-500' : 'border-slate-700 focus:border-orange-500'}`}
-                  placeholder="Contraseña..."
-               />
-               {unlockError && <span className="text-red-500 text-[10px] mt-1 block">Contraseña incorrecta o el proyecto no tiene contraseña.</span>}
-             </div>
-             <div className="flex gap-2 justify-end mt-2">
-               <button onClick={() => {setShowUnlockModal(false); setUnlockInput('');}} className="px-4 py-2 rounded bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 transition">Cancelar</button>
-               <button onClick={() => {
-                  if (projectPassword && unlockInput === projectPassword) {
-                    setIsReadOnly(false);
-                    setShowUnlockModal(false);
-                    setUnlockInput('');
-                    setUnlockError(false);
-                  } else {
-                    setUnlockError(true);
-                    setUnlockInput('');
-                  }
-               }} className="px-4 py-2 rounded bg-orange-600 text-white text-xs font-bold hover:bg-orange-700 transition">Desbloquear</button>
-             </div>
-           </div>
-        </div>
-      )}
-
     </div>
-  );
-}
+
+    <!-- Modal de Desbloqueo -->
+    <div id="modal-unlock" class="hidden absolute inset-0 z-[120] bg-slate-950/80 backdrop-blur-sm items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-6 w-full max-w-sm flex flex-col gap-4">
+            <h3 class="text-white font-bold flex items-center gap-2 text-lg">
+                <i data-lucide="key-round" class="text-orange-500 w-5 h-5"></i> Desbloquear Proyecto
+            </h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+                Este proyecto está protegido. Introduce la contraseña para editarlo.
+            </p>
+            <div>
+                <input type="password" id="input-unlock" class="bg-slate-950 text-white border border-slate-700 focus:border-orange-500 w-full p-2.5 rounded focus:outline-none transition-colors" placeholder="Contraseña...">
+                <span id="unlock-error" class="hidden text-red-500 text-[10px] mt-1 block">Contraseña incorrecta.</span>
+            </div>
+            <div class="flex gap-2 justify-end mt-2">
+                <button id="btn-cancel-unlock" class="px-4 py-2 rounded bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 transition">Cancelar</button>
+                <button id="btn-confirm-unlock" class="px-4 py-2 rounded bg-orange-600 text-white text-xs font-bold hover:bg-orange-500 transition">Desbloquear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Información (Wiki) -->
+    <div id="modal-info" class="hidden absolute inset-0 z-[150] bg-slate-950/80 backdrop-blur-sm items-center justify-center p-4 cursor-pointer">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-md overflow-hidden relative cursor-default" id="modal-info-content">
+            <button id="btn-close-info" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1.5 rounded-md hover:bg-slate-800 transition-colors z-20 bg-slate-950/50">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            
+            <div class="p-6 flex flex-col items-center border-b border-slate-800 bg-slate-950/50 relative overflow-hidden">
+                <div id="info-glow" class="absolute -inset-10 opacity-10 blur-2xl pointer-events-none"></div>
+                <div class="w-32 h-32 flex items-center justify-center bg-slate-900 rounded-xl border-2 border-slate-700 p-2 mb-4 shadow-inner relative z-10">
+                    <img id="info-img" src="" class="max-w-full max-h-full object-contain" referrerpolicy="no-referrer">
+                </div>
+                <h2 id="info-title" class="text-xl font-black text-white text-center uppercase tracking-wide relative z-10">Título</h2>
+                <span id="info-category-badge" class="text-[10px] font-bold px-3 py-1 rounded-full mt-3 border uppercase flex items-center gap-1 relative z-10">
+                    <i id="info-category-icon" data-lucide="" class="w-3 h-3"></i> <span id="info-category-name">Cat</span>
+                </span>
+            </div>
+            
+            <div class="p-6 space-y-5 bg-slate-900/90">
+                <div>
+                    <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                        <i data-lucide="info" class="w-3.5 h-3.5"></i> Descripción de Uso
+                    </h3>
+                    <p id="info-desc" class="text-sm text-slate-300 leading-relaxed"></p>
+                </div>
+                
+                <div class="bg-slate-950 p-4 rounded-lg border border-slate-800 flex items-start gap-3 shadow-inner">
+                    <i data-lucide="zap" class="text-yellow-500 flex-shrink-0 mt-0.5 w-5 h-5"></i>
+                    <div>
+                        <h3 class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">
+                            Consumo / Generación Eléctrica
+                        </h3>
+                        <p id="info-power" class="text-sm font-bold text-slate-100"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        const getLocalUserId = () => {
+            let uid = localStorage.getItem('rust_planner_uid');
+            if (!uid) { uid = 'user_' + generateId() + generateId(); localStorage.setItem('rust_planner_uid', uid); }
+            return uid;
+        };
+        const localUserId = getLocalUserId();
+
+        const CATEGORIES = {
+            generator: { name: 'Generadores', icon: 'zap', color: 'text-yellow-400', border: 'border-yellow-500/50', bg: 'bg-slate-800', hex: '#eab308' },
+            storage: { name: 'Almacenamiento', icon: 'battery', color: 'text-green-400', border: 'border-green-500/50', bg: 'bg-slate-800', hex: '#22c55e' },
+            logic: { name: 'Lógica y Sensores', icon: 'cpu', color: 'text-blue-400', border: 'border-blue-500/50', bg: 'bg-slate-800', hex: '#3b82f6' },
+            device: { name: 'Dispositivos y Defensas', icon: 'radio', color: 'text-red-400', border: 'border-red-500/50', bg: 'bg-slate-800', hex: '#ef4444' },
+            industrial: { name: 'Industrial', icon: 'box', color: 'text-orange-400', border: 'border-orange-500/50', bg: 'bg-slate-800', hex: '#f97316' },
+            liquid: { name: 'Líquidos y Agua', icon: 'droplets', color: 'text-cyan-400', border: 'border-cyan-500/50', bg: 'bg-slate-800', hex: '#06b6d4' }
+        };
+
+        const RUST_COMPONENTS = {
+            // GENERADORES
+            solar_panel: { name: 'Panel Solar', category: 'generator', img: 'electric.solarpanel.large', inputs: [], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Genera energía eléctrica a partir de la luz del sol. Su producción depende de hacia dónde esté mirando y la posición del sol en el servidor.', power: 'Producción: Hasta 20 rW' },
+            wind_turbine: { name: 'Aerogenerador', category: 'generator', img: 'generator.wind.scrap', inputs: [], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Genera energía a partir del viento. Cuanto más alto lo coloques en tu base, más energía será capaz de producir.', power: 'Producción: Hasta 150 rW' },
+            water_catcher: { name: 'Recolector de Agua', category: 'generator', img: 'water.catcher.large', inputs: [], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }], desc: 'Recoge agua de lluvia del ambiente o de niebla de forma pasiva. Necesita estar en el exterior y no tener techo encima.', power: 'Consumo: 0 rW (Genera líquidos)' },
+            small_generator: { name: 'Generador Pequeño', category: 'generator', img: 'electric.fuelgenerator.small', inputs: [{ id: 'in1', name: 'Force Start', type: 'electric' }, { id: 'in2', name: 'Force Stop', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Generador a motor que quema Combustible de Grado Bajo (Low Grade) para producir electricidad de forma constante.', power: 'Producción: 40 rW' },
+            
+            // ALMACENAMIENTO
+            large_battery: { name: 'Batería Grande', category: 'storage', img: 'electric.battery.rechargable.large', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Acumulador masivo de energía para grandes bases. Conserva la luz para mantener torretas activas durante la noche.', power: 'Capacidad: 24000 min / Salida Máx: 100 rW' },
+            medium_battery: { name: 'Batería Mediana', category: 'storage', img: 'electric.battery.rechargable.medium', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Acumulador de tamaño intermedio. Ideal para puestos avanzados o bases de tamaño medio.', power: 'Capacidad: 9000 min / Salida Máx: 50 rW' },
+            small_battery: { name: 'Batería Pequeña', category: 'storage', img: 'electric.battery.rechargable.small', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Pequeño acumulador de energía ideal para circuitos básicos como luces o encendedores.', power: 'Capacidad: 150 min / Salida Máx: 10 rW' },
+            fluid_barrel: { name: 'Barril de Agua', category: 'storage', img: 'water.barrel', inputs: [{ id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }], desc: 'Contenedor para almacenar gran cantidad de líquidos (agua dulce o salada). Ideal para sistemas de riego.', power: 'Capacidad: 20000 ml' },
+
+            // LÓGICA Y SENSORES
+            splitter: { name: 'Divisor (Splitter)', category: 'logic', img: 'electric.splitter', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Out 1', type: 'electric' }, { id: 'out2', name: 'Out 2', type: 'electric' }, { id: 'out3', name: 'Out 3', type: 'electric' }], desc: 'Recibe energía y la divide equitativamente entre los puertos de salida que estén conectados.', power: 'Consumo: 1 rW' },
+            branch: { name: 'Ramificador (Branch)', category: 'logic', img: 'electrical.branch', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Branch Out', type: 'electric' }, { id: 'out2', name: 'Power Out', type: 'electric' }], desc: 'Extrae una cantidad de energía exacta por la salida "Branch Out" y deja pasar el resto por "Power Out".', power: 'Consumo: 1 rW' },
+            combiner: { name: 'Combinador', category: 'logic', img: 'electrical.combiner', inputs: [{ id: 'in1', name: 'Power In 1', type: 'electric' }, { id: 'in2', name: 'Power In 2', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Suma la energía de dos fuentes de alimentación en un solo flujo.', power: 'Consumo: 0 rW' },
+            blocker: { name: 'Bloqueador', category: 'logic', img: 'electric.blocker', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Block', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Corta el flujo principal si recibe energía por el puerto lateral Block.', power: 'Consumo: 1 rW' },
+            memory_cell: { name: 'Célula de Memoria', category: 'logic', img: 'electrical.memorycell', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Set', type: 'electric' }, { id: 'in3', name: 'Reset', type: 'electric' }, { id: 'in4', name: 'Toggle', type: 'electric' }], outputs: [{ id: 'out1', name: 'Output', type: 'electric' }, { id: 'out2', name: 'Inverted', type: 'electric' }], desc: 'Almacena un estado de encendido o apagado para lógicas computacionales.', power: 'Consumo: 1 rW' },
+            switch: { name: 'Interruptor Manual', category: 'logic', img: 'electric.switch', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Switch On', type: 'electric' }, { id: 'in3', name: 'Switch Off', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Interruptor físico de palanca para abrir o cerrar el paso de corriente.', power: 'Consumo: 0 rW' },
+            smart_switch: { name: 'Interruptor App', category: 'logic', img: 'smart.switch', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Se vincula a la aplicación móvil Rust+ para control remoto.', power: 'Consumo: 1 rW' },
+            hbhf_sensor: { name: 'Sensor HBHF', category: 'logic', img: 'electric.hbhfsensor', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Conocido como el "detector de calvos". Deja pasar 1 rW por cada persona detectada.', power: 'Consumo: 1 rW' },
+            laser_detector: { name: 'Detector Láser', category: 'logic', img: 'electric.laserdetector', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Emite un haz láser invisible que se activa al ser cruzado por un jugador.', power: 'Consumo: 1 rW' },
+            pressure_pad: { name: 'Placa de Presión', category: 'logic', img: 'electric.pressurepad', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Alfombrilla oculta en el suelo que se activa al ser pisada.', power: 'Consumo: 1 rW' },
+            push_button: { name: 'Pulsador', category: 'logic', img: 'electric.button', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Deja fluir la energía únicamente durante unos pocos segundos al presionarlo.', power: 'Consumo: 0 rW' },
+            timer: { name: 'Temporizador', category: 'logic', img: 'electric.timer', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Toggle', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Deja pasar corriente durante los segundos configurados.', power: 'Consumo: 1 rW' },
+            counter: { name: 'Contador Digital', category: 'logic', img: 'electric.counter', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Increment', type: 'electric' }, { id: 'in3', name: 'Decrement', type: 'electric' }], outputs: [{ id: 'out1', name: 'Passthrough', type: 'electric' }], desc: 'Suma o resta impulsos eléctricos en su pantalla digital.', power: 'Consumo: 1 rW' },
+            rf_receiver: { name: 'Receptor RF', category: 'logic', img: 'rf.receiver', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Escucha una frecuencia de radio y activa su salida al recibir señal.', power: 'Consumo: 1 rW' },
+            rf_broadcaster: { name: 'Transmisor RF', category: 'logic', img: 'rf.broadcaster', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [], desc: 'Emite una señal de radio por todo el mapa en una frecuencia asignada.', power: 'Consumo: 1 rW' },
+            or_switch: { name: 'Puerta OR', category: 'logic', img: 'electric.orswitch', inputs: [{ id: 'in1', name: 'Input A', type: 'electric' }, { id: 'in2', name: 'Input B', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Da energía si recibe señal por el cable A o por el cable B.', power: 'Consumo: 1 rW' },
+            and_switch: { name: 'Puerta AND', category: 'logic', img: 'electric.andswitch', inputs: [{ id: 'in1', name: 'Input A', type: 'electric' }, { id: 'in2', name: 'Input B', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Da energía únicamente si ambos cables A y B reciben electricidad simultáneamente.', power: 'Consumo: 1 rW' },
+            xor_switch: { name: 'Puerta XOR', category: 'logic', img: 'electric.xorswitch', inputs: [{ id: 'in1', name: 'Input A', type: 'electric' }, { id: 'in2', name: 'Input B', type: 'electric' }], outputs: [{ id: 'out1', name: 'Power Out', type: 'electric' }], desc: 'Da luz si recibe energía de A o B, pero nunca de ambos a la vez.', power: 'Consumo: 1 rW' },
+
+            // DISPOSITIVOS Y DEFENSAS
+            auto_turret: { name: 'Torreta Automática', category: 'device', img: 'autoturret', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'No Ammo', type: 'electric' }, { id: 'out2', name: 'Low Ammo', type: 'electric' }, { id: 'out3', name: 'Has Target', type: 'electric' }], desc: 'Defensa letal que dispara a enemigos. Requiere arma y munición en su inventario.', power: 'Consumo: 10 rW' },
+            sam_site: { name: 'Torreta Antiaérea SAM', category: 'device', img: 'sam.site', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Defender In', type: 'electric' }], outputs: [], desc: 'Dispara misiles a vehículos aéreos que sobrevuelen la zona.', power: 'Consumo: 25 rW' },
+            shotgun_trap: { name: 'Trampa Escopeta', category: 'device', img: 'guntrap', inputs: [], outputs: [], desc: 'Dispara cartuchos de escopeta automáticamente si un no autorizado camina enfrente.', power: 'Consumo: 0 rW (Mecánica)' },
+            igniter: { name: 'Encendedor', category: 'device', img: 'igniter', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [], desc: 'Prende fuego a hogueras o explosivos cercanos al recibir electricidad.', power: 'Consumo: 2 rW' },
+            ceiling_light: { name: 'Lámpara de Techo', category: 'device', img: 'ceilinglight', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Passthrough', type: 'electric' }], desc: 'Iluminación para interiores de bases.', power: 'Consumo: 2 rW' },
+            siren_light: { name: 'Luz de Sirena', category: 'device', img: 'sirenlight', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [{ id: 'out1', name: 'Passthrough', type: 'electric' }], desc: 'Sirena giratoria de color rojo para alarmas visuales.', power: 'Consumo: 1 rW' },
+            smart_alarm: { name: 'Alarma de App', category: 'device', img: 'smart.alarm', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [], desc: 'Envía notificación PUSH a la app Rust+ al recibir corriente.', power: 'Consumo: 1 rW' },
+            audio_alarm: { name: 'Alarma Sonora', category: 'device', img: 'electric.audioalarm', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [], desc: 'Emite un pitido y zumbido extremadamente alto al activarse.', power: 'Consumo: 1 rW' },
+            computer_station: { name: 'Estación PC', category: 'device', img: 'computerstation', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [], desc: 'Terminal para espiar cámaras CCTV repartidas por el mapa.', power: 'Consumo: 1 rW' },
+            cctv_camera: { name: 'Cámara CCTV', category: 'device', img: 'cctv.camera', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [], desc: 'Cámara estática para vigilancia.', power: 'Consumo: 5 rW' },
+            ptz_camera: { name: 'Cámara PTZ Móvil', category: 'device', img: 'ptz.camera', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [], desc: 'Cámara rotativa en 360 grados con zoom remoto.', power: 'Consumo: 5 rW' },
+            search_light: { name: 'Foco de Búsqueda', category: 'device', img: 'searchlight', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [], desc: 'Proyector de luz de larguísimo alcance visible en la oscuridad.', power: 'Consumo: 10 rW' },
+            tesla_coil: { name: 'Bobina Tesla', category: 'device', img: 'teslacoil', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }], outputs: [], desc: 'Electrocita a intrusos cercanos causando daño constante.', power: 'Consumo: Hasta 35 rW' },
+
+            // INDUSTRIAL
+            electric_furnace: { name: 'Horno Eléctrico', category: 'industrial', img: 'electric.furnace', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_ind1', name: 'Item In', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }], desc: 'Funde metales usando electricidad pura sin gastar madera.', power: 'Consumo: 3 rW' },
+            storage_adaptor: { name: 'Adaptador Cofres', category: 'industrial', img: 'storageadaptor', inputs: [{ id: 'in_ind1', name: 'Item In', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }], desc: 'Se acopla a cajas de loot y armarios para conectar tuberías industriales.', power: 'Consumo: 0 rW' },
+            conveyor: { name: 'Transportador', category: 'industrial', img: 'industrial.conveyor', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_ind1', name: 'Item In', type: 'industrial' }, { id: 'in2', name: 'Turn On', type: 'electric' }, { id: 'in3', name: 'Turn Off', type: 'electric' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }, { id: 'out1', name: 'Filter Pass', type: 'electric' }, { id: 'out2', name: 'Filter Fail', type: 'electric' }], desc: 'Filtra y transporta objetos automáticamente entre contenedores.', power: 'Consumo: 1 rW' },
+            industrial_crafter: { name: 'Fabricante Auto', category: 'industrial', img: 'industrial.crafter', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_ind1', name: 'Item In', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }], desc: 'Fabrica objetos 24/7 si recibe los materiales por tubería.', power: 'Consumo: 1 rW' },
+            industrial_splitter: { name: 'Divisor Tubos', category: 'industrial', img: 'industrial.splitter', inputs: [{ id: 'in_ind1', name: 'Item In', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Out 1', type: 'industrial' }, { id: 'out_ind2', name: 'Out 2', type: 'industrial' }, { id: 'out_ind3', name: 'Out 3', type: 'industrial' }], desc: 'Bifurca el flujo de objetos hacia tres cajas distintas.', power: 'Consumo: 0 rW' },
+            industrial_combiner: { name: 'Combinador Tubos', category: 'industrial', img: 'industrial.combiner', inputs: [{ id: 'in_ind1', name: 'In 1', type: 'industrial' }, { id: 'in_ind2', name: 'In 2', type: 'industrial' }, { id: 'in_ind3', name: 'In 3', type: 'industrial' }], outputs: [{ id: 'out_ind1', name: 'Item Out', type: 'industrial' }], desc: 'Une múltiples flujos de tuberías en una sola línea principal.', power: 'Consumo: 0 rW' },
+
+            // LÍQUIDOS
+            fluid_pump: { name: 'Bomba de Agua', category: 'liquid', img: 'fluid.pump', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }], desc: 'Impulsa agua contra la gravedad desde ríos o lagos.', power: 'Consumo: 5 rW' },
+            fluid_switch: { name: 'Válvula de Agua', category: 'liquid', img: 'fluid.switch', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in2', name: 'Turn On', type: 'electric' }, { id: 'in3', name: 'Turn Off', type: 'electric' }, { id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }], desc: 'Abre o cierra el flujo de líquidos por mangueras.', power: 'Consumo: 1 rW' },
+            fluid_splitter: { name: 'Divisor de Agua', category: 'liquid', img: 'fluid.splitter', inputs: [{ id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Out 1', type: 'liquid' }, { id: 'out_liq2', name: 'Out 2', type: 'liquid' }, { id: 'out_liq3', name: 'Out 3', type: 'liquid' }], desc: 'Divide la presión de agua en tres salidas iguales.', power: 'Consumo: 0 rW' },
+            fluid_combiner: { name: 'Combinador de Agua', category: 'liquid', img: 'fluid.combiner', inputs: [{ id: 'in_liq1', name: 'In 1', type: 'liquid' }, { id: 'in_liq2', name: 'In 2', type: 'liquid' }, { id: 'in_liq3', name: 'In 3', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }], desc: 'Une varios flujos de agua en una sola tubería.', power: 'Consumo: 0 rW' },
+            water_purifier: { name: 'Purificador', category: 'liquid', img: 'water.purifier.powered', inputs: [{ id: 'in1', name: 'Power In', type: 'electric' }, { id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Water Out', type: 'liquid' }], desc: 'Convierte agua salada del mar en agua potable dulce a velocidad.', power: 'Consumo: 5 rW' },
+            sprinkler: { name: 'Aspersor Cultivos', category: 'liquid', img: 'sprinkler', inputs: [{ id: 'in_liq1', name: 'Water In', type: 'liquid' }], outputs: [{ id: 'out_liq1', name: 'Passthrough', type: 'liquid' }], desc: 'Riega cultivos cercanos en maceteros para acelerar su crecimiento.', power: 'Consumo: 0 rW' }
+        };
+
+        const WIRE_COLORS = [
+            '#3b82f6', '#eab308', '#ef4444', '#22c55e', '#f97316', 
+            '#06b6d4', '#a855f7', '#ec4899', '#ffffff', '#000000'
+        ];
+
+        const TOOLS = [
+            { id: 'select', name: 'Cursor', icon: 'mouse-pointer-2' },
+            { id: 'pan', name: 'Mover', icon: 'hand' },
+            { id: 'text', name: 'Nota', icon: 'type' },
+            { id: 'delete', name: 'Borrar', icon: 'trash-2', danger: true }
+        ];
+
+        let state = {
+            nodes: [],
+            connections: [],
+            texts: [],
+            tool: 'select',
+            wireColor: '#3b82f6',
+            zoom: 1,
+            pan: { x: 0, y: 0 },
+            isPanning: false,
+            startPanPos: { x: 0, y: 0 },
+            connecting: null,
+            dragging: null,
+            projects: [],
+            currentProjectId: null,
+            isReadOnly: false,
+            expandedCategories: {}
+        };
+
+        const DOM = {
+            canvasWrapper: document.getElementById('canvas-wrapper'),
+            canvasTransform: document.getElementById('canvas-transform'),
+            nodesLayer: document.getElementById('nodes-layer'),
+            wiresLayer: document.getElementById('wires-layer'),
+            activeWireLayer: document.getElementById('active-wire-layer'),
+            toolIndicator: document.getElementById('current-tool-text'),
+            sidebarTools: document.getElementById('tool-buttons'),
+            colorPalette: document.getElementById('color-palette'),
+            categoriesContainer: document.getElementById('categories-container'),
+            modals: {
+                projects: document.getElementById('modal-projects'),
+                unlock: document.getElementById('modal-unlock'),
+                info: document.getElementById('modal-info')
+            },
+            alerts: {
+                wiring: document.getElementById('wiring-alert'),
+                readonly: document.getElementById('readonly-alert'),
+                readOverlay: document.getElementById('read-only-overlay')
+            },
+            inputs: {
+                projName: document.getElementById('project-name'),
+                projPass: document.getElementById('project-password')
+            }
+        };
+
+        function init() {
+            renderSidebar();
+            loadLocalProjects();
+            attachGlobalListeners();
+            updateCanvasTransform();
+            lucide.createIcons();
+            updateToolUI();
+        }
+
+        function renderSidebar() {
+            DOM.sidebarTools.innerHTML = TOOLS.map(t => `
+                <button onclick="setTool('${t.id}')" id="tool-btn-${t.id}" class="p-2 rounded-md flex flex-col items-center justify-center gap-1 transition ${state.tool === t.id ? (t.danger ? 'bg-red-600 text-white shadow-lg' : 'bg-orange-600 text-white shadow-lg') : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}">
+                    <i data-lucide="${t.icon}" class="w-4 h-4"></i><span class="text-[10px]">${t.name}</span>
+                </button>
+            `).join('');
+
+            DOM.colorPalette.innerHTML = WIRE_COLORS.map(c => `
+                <button onclick="setColor('${c}')" class="w-6 h-6 rounded-full border-2 transition-transform ${state.wireColor === c ? 'border-white scale-125 shadow-md z-10' : 'border-transparent hover:scale-110 opacity-80'}" style="background-color: ${c}" title="Seleccionar color"></button>
+            `).join('');
+
+            DOM.categoriesContainer.innerHTML = Object.entries(CATEGORIES).map(([catKey, cat]) => `
+                <div class="rounded-lg overflow-hidden border border-slate-800/60 bg-slate-950/30">
+                    <button onclick="toggleCategory('${catKey}')" class="w-full flex items-center justify-between p-2.5 bg-slate-900 hover:bg-slate-800/80 transition-colors text-left">
+                        <div class="flex items-center gap-2 ${cat.color} font-bold text-xs tracking-wide">
+                            <i data-lucide="${cat.icon}" class="w-4 h-4"></i> ${cat.name}
+                        </div>
+                        <i data-lucide="${state.expandedCategories[catKey] ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5 text-slate-400"></i>
+                    </button>
+                    ${state.expandedCategories[catKey] ? `
+                        <div class="grid grid-cols-2 gap-1.5 p-2 bg-slate-950/40">
+                            ${Object.entries(RUST_COMPONENTS).filter(([_, c]) => c.category === catKey).map(([k, c]) => `
+                                <div class="relative group">
+                                    <button onclick="setTool('${k}')" id="tool-btn-${k}" class="w-full p-2 rounded-md border flex flex-col items-center text-center transition-all ${state.tool === k ? `bg-slate-800 ${cat.border} border-2 shadow-lg ring-1 ring-orange-500/50` : 'bg-slate-900 border-slate-800 hover:border-slate-700 hover:bg-slate-800/60'}" title="Añadir ${c.name}">
+                                        <div class="w-10 h-10 mb-1 flex items-center justify-center p-0.5">
+                                            <img src="https://rustlabs.com/img/items180/${c.img}.png" referrerpolicy="no-referrer" class="max-w-full max-h-full object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                            <div class="hidden flex-col items-center justify-center text-slate-500">
+                                                <i data-lucide="box" class="w-4 h-4 mb-0.5 opacity-60"></i>
+                                            </div>
+                                        </div>
+                                        <span class="text-[10px] leading-tight text-slate-300 font-medium truncate w-full">${c.name}</span>
+                                    </button>
+                                    <button onmousedown="event.stopPropagation(); showComponentInfo('${k}')" class="absolute top-1 right-1 w-5 h-5 bg-slate-800 text-slate-400 hover:text-white rounded-full border border-slate-600 flex items-center justify-center shadow-lg transition-transform hover:scale-110 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100" title="Ver Info">
+                                        <i data-lucide="info" class="w-3 h-3"></i>
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+            
+            lucide.createIcons();
+        }
+
+        function setTool(toolId) {
+            state.tool = toolId;
+            cancelWire();
+            renderSidebar();
+            updateToolUI();
+        }
+
+        function setColor(colorHex) {
+            state.wireColor = colorHex;
+            renderSidebar();
+        }
+
+        function toggleCategory(catId) {
+            state.expandedCategories[catId] = !state.expandedCategories[catId];
+            renderSidebar();
+        }
+
+        function updateToolUI() {
+            DOM.toolIndicator.innerText = state.tool;
+            DOM.canvasWrapper.style.cursor = 
+                (state.tool === 'pan' || state.isPanning) ? 'grab' :
+                state.connecting ? 'crosshair' : 'default';
+            
+            if (state.isPanning) DOM.canvasWrapper.style.cursor = 'grabbing';
+            
+            if (state.connecting) DOM.alerts.wiring.classList.replace('hidden', 'flex');
+            else DOM.alerts.wiring.classList.replace('flex', 'hidden');
+
+            renderNodes();
+            drawWires();
+        }
+
+        function getLocalCoords(clientX, clientY) {
+            const rect = DOM.canvasWrapper.getBoundingClientRect();
+            return {
+                x: (clientX - rect.left - state.pan.x) / state.zoom,
+                y: (clientY - rect.top - state.pan.y) / state.zoom
+            };
+        }
+
+        function renderNodes() {
+            DOM.nodesLayer.innerHTML = '';
+            
+            state.nodes.forEach(node => {
+                const comp = node.data;
+                const cat = CATEGORIES[comp.category];
+                const el = document.createElement('div');
+                el.className = `absolute w-40 rounded-lg border shadow-2xl z-20 transition-colors pointer-events-auto ${cat.border} ${cat.bg} ${state.tool === 'delete' && !state.isReadOnly ? 'hover:border-red-500 hover:ring-2 hover:ring-red-500/50 cursor-pointer' : 'cursor-move'}`;
+                el.style.left = node.x + 'px';
+                el.style.top = node.y + 'px';
+                
+                el.onmousedown = (e) => {
+                    if (state.connecting) return;
+                    e.stopPropagation();
+                    if (state.isReadOnly) return;
+                    
+                    if (state.tool === 'select') {
+                        const local = getLocalCoords(e.clientX, e.clientY);
+                        state.dragging = { id: node.id, type: 'node', offset: { x: local.x - node.x, y: local.y - node.y } };
+                    } else if (state.tool === 'delete') {
+                        deleteNode(node.id);
+                    }
+                };
+
+                let html = `
+                    <div class="flex items-center gap-2 p-2 border-b border-slate-800 bg-slate-950/80 rounded-t-lg relative">
+                        <div class="w-6 h-6 flex-shrink-0 flex items-center justify-center bg-slate-900 rounded border border-slate-800">
+                            <img src="https://rustlabs.com/img/items180/${comp.img}.png" referrerpolicy="no-referrer" class="max-w-full max-h-full object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <i data-lucide="box" class="w-4 h-4 hidden opacity-60"></i>
+                        </div>
+                        <span class="text-[11px] font-bold text-slate-200 truncate leading-tight pr-5">${comp.name}</span>
+                        <button onmousedown="event.stopPropagation(); showComponentInfo('${node.type}')" class="absolute -top-2 -right-2 w-6 h-6 bg-slate-800 text-slate-400 hover:text-white rounded-full border border-slate-600 flex items-center justify-center shadow-lg transition-transform hover:scale-110 z-10" title="Información">
+                            <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                    <div class="p-2 relative min-h-[36px]">
+                        <div class="absolute left-0 top-2 bottom-2 flex flex-col gap-2.5 -ml-3 z-30">
+                            ${comp.inputs.map(p => {
+                                const color = p.type==='liquid'?'bg-cyan-400':p.type==='industrial'?'bg-orange-500':'bg-yellow-400';
+                                const isConn = state.connecting && state.connecting.nodeId === node.id && state.connecting.portId === p.id;
+                                return `<div onmousedown="handlePortClick(event, '${node.id}', '${p.id}', '${p.type}', true)" class="w-3.5 h-3.5 ${color} rounded-full border-2 border-slate-950 cursor-pointer hover:scale-150 transition-transform shadow-md ${isConn?'ring-2 ring-white scale-125':''}"></div>`;
+                            }).join('')}
+                        </div>
+                        <div class="absolute right-0 top-2 bottom-2 flex flex-col gap-2.5 -mr-3 z-30">
+                            ${comp.outputs.map(p => {
+                                const color = p.type==='liquid'?'bg-cyan-400':p.type==='industrial'?'bg-orange-500':'bg-blue-500';
+                                const isConn = state.connecting && state.connecting.nodeId === node.id && state.connecting.portId === p.id;
+                                return `<div onmousedown="handlePortClick(event, '${node.id}', '${p.id}', '${p.type}', false)" class="w-3.5 h-3.5 ${color} rounded-full border-2 border-slate-950 cursor-pointer hover:scale-150 transition-transform shadow-md ${isConn?'ring-2 ring-white scale-125':''}"></div>`;
+                            }).join('')}
+                        </div>
+                        <div class="flex justify-between w-full h-full text-slate-400 pointer-events-none text-[9px] font-mono">
+                            <div class="flex flex-col gap-2.5 pl-1">${comp.inputs.map(p => `<div class="h-3.5 flex items-center leading-none truncate max-w-[65px]">${p.name}</div>`).join('')}</div>
+                            <div class="flex flex-col gap-2.5 pr-1 text-right">${comp.outputs.map(p => `<div class="h-3.5 flex items-center justify-end leading-none truncate max-w-[65px]">${p.name}</div>`).join('')}</div>
+                        </div>
+                    </div>
+                `;
+                el.innerHTML = html;
+                DOM.nodesLayer.appendChild(el);
+            });
+
+            state.texts.forEach(text => {
+                const el = document.createElement('div');
+                el.className = `absolute z-40 p-1 pointer-events-auto rounded-lg ${state.tool === 'delete' && !state.isReadOnly ? 'hover:ring-2 hover:ring-red-500 cursor-pointer' : 'bg-slate-900/60 border border-slate-700/80 shadow-2xl backdrop-blur-sm'}`;
+                el.style.left = text.x + 'px';
+                el.style.top = text.y + 'px';
+
+                el.onmousedown = (e) => {
+                    if (state.tool === 'delete' && !state.isReadOnly) {
+                        e.stopPropagation();
+                        state.texts = state.texts.filter(t => t.id !== text.id);
+                        renderNodes();
+                    }
+                };
+                
+                let header = document.createElement('div');
+                header.className = "w-full h-2 bg-slate-800/80 rounded-t cursor-move mb-1";
+                header.onmousedown = (e) => {
+                    if (state.tool === 'delete' || state.tool === 'pan' || state.connecting || state.isReadOnly) return;
+                    e.stopPropagation();
+                    if (state.tool === 'select') {
+                        const local = getLocalCoords(e.clientX, e.clientY);
+                        state.dragging = { id: text.id, type: 'text', offset: { x: local.x - text.x, y: local.y - text.y } };
+                    }
+                };
+
+                let ta = document.createElement('textarea');
+                ta.className = "textarea-nodrag bg-slate-950/90 text-yellow-300 font-mono text-xs p-2 rounded border border-slate-700 focus:border-yellow-500 focus:outline-none transition-colors resize-both custom-scrollbar block";
+                ta.value = text.content;
+                ta.placeholder = "Escribe aquí...";
+                ta.style.width = (text.width || 150) + 'px';
+                ta.style.height = (text.height || 60) + 'px';
+                ta.style.minWidth = '100px';
+                ta.style.minHeight = '40px';
+                ta.disabled = state.tool === 'delete' || state.tool === 'pan' || state.isReadOnly;
+                
+                ta.onmousedown = e => e.stopPropagation();
+                ta.oninput = e => { text.content = e.target.value; };
+                ta.onmouseup = e => {
+                    text.width = ta.offsetWidth;
+                    text.height = ta.offsetHeight;
+                };
+
+                el.appendChild(header);
+                el.appendChild(ta);
+                DOM.nodesLayer.appendChild(el);
+            });
+
+            lucide.createIcons({ root: DOM.nodesLayer });
+        }
+
+        function getPortCoordinates(nodeId, portId, isInput) {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (!node) return null;
+            
+            const portsList = isInput ? node.data.inputs : node.data.outputs;
+            const portIndex = portsList.findIndex(p => p.id === portId);
+            if (portIndex === -1) return null;
+            
+            const yOffset = 56 + (portIndex * 24);
+            const xOffset = isInput ? -5 : 165;
+
+            return { x: node.x + xOffset, y: node.y + yOffset };
+        }
+
+        function renderPathD(start, waypoints, end) {
+            let d = `M ${start.x} ${start.y}`;
+            (waypoints || []).forEach(wp => { d += ` L ${wp.x} ${wp.y}`; });
+            d += ` L ${end.x} ${end.y}`;
+            return d;
+        }
+
+        function drawWires() {
+            let html = '';
+            
+            state.connections.forEach(conn => {
+                const start = getPortCoordinates(conn.startNodeId, conn.startPortId, false);
+                const end = getPortCoordinates(conn.endNodeId, conn.endPortId, true);
+                if (!start || !end) return;
+                
+                const pathD = renderPathD(start, conn.waypoints, end);
+                const isBlack = conn.color === '#000000';
+                
+                const swOutline = conn.portType === 'electric' ? (isBlack ? 5 : 6) : 8;
+                const swInner = conn.portType === 'electric' ? 3.5 : 5;
+                const outColor = isBlack ? '#ffffff' : '#020617';
+
+                html += `
+                    <g class="group pointer-events-auto ${state.tool === 'delete' && !state.isReadOnly ? 'cursor-pointer wire-interactive' : 'cursor-pointer'}" 
+                       onmousedown="handleWireInteraction(event, '${conn.id}')">
+                        <path d="${pathD}" fill="none" stroke="${outColor}" stroke-width="${swOutline}" stroke-linecap="round" stroke-linejoin="round"></path>
+                        <path d="${pathD}" fill="none" stroke="${conn.color}" stroke-width="${swInner}" stroke-linecap="round" stroke-linejoin="round"></path>
+                        ${(conn.waypoints||[]).map(wp => `<circle cx="${wp.x}" cy="${wp.y}" r="3" fill="${conn.color}" stroke="${outColor}" stroke-width="1.5"></circle>`).join('')}
+                    </g>
+                `;
+            });
+            DOM.wiresLayer.innerHTML = html;
+        }
+
+        function drawActiveWire(mouseLocal) {
+            if (!state.connecting) {
+                DOM.activeWireLayer.innerHTML = '';
+                return;
+            }
+            const start = getPortCoordinates(state.connecting.nodeId, state.connecting.portId, state.connecting.isInput);
+            if (!start) return;
+
+            const pathD = renderPathD(start, state.connecting.waypoints, mouseLocal);
+            const isBlack = state.wireColor === '#000000';
+            const swOutline = state.connecting.portType === 'electric' ? (isBlack ? 5 : 6) : 8;
+            const swInner = state.connecting.portType === 'electric' ? 3.5 : 5;
+            const outColor = isBlack ? '#ffffff' : '#020617';
+
+            let html = `
+                <g opacity="0.8">
+                    <path d="${pathD}" fill="none" stroke="${outColor}" stroke-width="${swOutline}" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <path d="${pathD}" fill="none" stroke="${state.wireColor}" stroke-width="${swInner}" stroke-dasharray="6,4" stroke-linecap="round" stroke-linejoin="round"></path>
+                    ${state.connecting.waypoints.map(wp => `<circle cx="${wp.x}" cy="${wp.y}" r="4" fill="#ffffff" stroke="${state.wireColor}" stroke-width="2"></circle>`).join('')}
+                </g>
+            `;
+            DOM.activeWireLayer.innerHTML = html;
+        }
+
+        function handlePortClick(e, nodeId, portId, portType, isInput) {
+            e.stopPropagation();
+            if (state.tool === 'delete' || state.isReadOnly) return;
+
+            if (!state.connecting) {
+                state.connecting = { nodeId, portId, portType, isInput, waypoints: [] };
+                updateToolUI();
+            } else {
+                if (state.connecting.nodeId === nodeId || state.connecting.portType !== portType || state.connecting.isInput === isInput) {
+                    return;
+                }
+
+                const startNodeId = state.connecting.isInput ? nodeId : state.connecting.nodeId;
+                const startPortId = state.connecting.isInput ? portId : state.connecting.portId;
+                const endNodeId = state.connecting.isInput ? state.connecting.nodeId : nodeId;
+                const endPortId = state.connecting.isInput ? state.connecting.portId : portId;
+                
+                const finalWaypoints = state.connecting.isInput ? [...state.connecting.waypoints].reverse() : state.connecting.waypoints;
+
+                if (!state.connections.find(c => c.endNodeId === endNodeId && c.endPortId === endPortId)) {
+                    state.connections.push({
+                        id: generateId(),
+                        startNodeId, startPortId, endNodeId, endPortId,
+                        portType, color: state.wireColor, waypoints: finalWaypoints
+                    });
+                }
+                
+                cancelWire();
+                drawWires();
+            }
+        }
+
+        function handleWireInteraction(e, connId) {
+            e.stopPropagation();
+            if (state.isReadOnly) return;
+            if (state.tool === 'delete') {
+                state.connections = state.connections.filter(c => c.id !== connId);
+                drawWires();
+            } else if (state.tool === 'select') {
+                const conn = state.connections.find(c => c.id === connId);
+                if (conn) conn.color = state.wireColor;
+                drawWires();
+            }
+        }
+
+        function cancelWire() {
+            state.connecting = null;
+            DOM.activeWireLayer.innerHTML = '';
+            updateToolUI();
+        }
+
+        function attachGlobalListeners() {
+            window.addEventListener('keydown', (e) => { if (e.key === 'Escape') cancelWire(); });
+            window.addEventListener('contextmenu', (e) => {
+                if (state.connecting) {
+                    e.preventDefault();
+                    cancelWire();
+                }
+            });
+
+            DOM.canvasWrapper.addEventListener('mousedown', (e) => {
+                if (e.button === 2) return;
+
+                if (state.tool === 'pan' || e.button === 1 || state.isReadOnly) {
+                    state.isPanning = true;
+                    state.startPanPos = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
+                    updateToolUI();
+                    return;
+                }
+
+                const local = getLocalCoords(e.clientX, e.clientY);
+
+                if (state.connecting) {
+                    state.connecting.waypoints.push({ x: local.x, y: local.y });
+                    drawActiveWire(local);
+                    return;
+                }
+
+                if (state.tool === 'text') {
+                    state.texts.push({ id: generateId(), x: local.x, y: local.y, content: '', width: 150, height: 60 });
+                    setTool('select');
+                    renderNodes();
+                } else if (RUST_COMPONENTS[state.tool]) {
+                    const compDef = RUST_COMPONENTS[state.tool];
+                    state.nodes.push({ id: generateId(), type: state.tool, x: local.x - 80, y: local.y - 40, data: compDef });
+                    setTool('select');
+                    renderNodes();
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (state.isPanning) {
+                    state.pan.x = e.clientX - state.startPanPos.x;
+                    state.pan.y = e.clientY - state.startPanPos.y;
+                    updateCanvasTransform();
+                    return;
+                }
+
+                const local = getLocalCoords(e.clientX, e.clientY);
+
+                if (state.connecting) {
+                    drawActiveWire(local);
+                }
+
+                if (state.dragging) {
+                    if (state.dragging.type === 'node') {
+                        const node = state.nodes.find(n => n.id === state.dragging.id);
+                        if (node) {
+                            node.x = local.x - state.dragging.offset.x;
+                            node.y = local.y - state.dragging.offset.y;
+                            renderNodes();
+                            drawWires();
+                        }
+                    } else if (state.dragging.type === 'text') {
+                        const text = state.texts.find(t => t.id === state.dragging.id);
+                        if (text) {
+                            text.x = local.x - state.dragging.offset.x;
+                            text.y = local.y - state.dragging.offset.y;
+                            renderNodes();
+                        }
+                    }
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                state.dragging = null;
+                state.isPanning = false;
+                updateToolUI();
+            });
+
+            document.getElementById('btn-zoom-in').onclick = () => { state.zoom = Math.min(3, state.zoom + 0.2); updateCanvasTransform(); };
+            document.getElementById('btn-zoom-out').onclick = () => { state.zoom = Math.max(0.2, state.zoom - 0.2); updateCanvasTransform(); };
+            document.getElementById('btn-zoom-reset').onclick = () => { state.zoom = 1; state.pan = {x:0, y:0}; updateCanvasTransform(); };
+            DOM.canvasWrapper.addEventListener('wheel', (e) => {
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                    if (e.deltaY > 0) state.zoom = Math.max(0.2, state.zoom - 0.1);
+                    else state.zoom = Math.min(3, state.zoom + 0.1);
+                    updateCanvasTransform();
+                }
+            }, { passive: false });
+
+            document.getElementById('btn-save').onclick = saveProject;
+            document.getElementById('btn-projects').onclick = () => { renderProjectsModal(); DOM.modals.projects.classList.replace('hidden', 'flex'); };
+            document.getElementById('btn-close-projects').onclick = () => DOM.modals.projects.classList.replace('flex', 'hidden');
+            document.getElementById('btn-new-project').onclick = newProject;
+            document.getElementById('input-import').onchange = importProject;
+            
+            document.getElementById('btn-show-unlock').onclick = () => { document.getElementById('unlock-error').classList.add('hidden'); DOM.modals.unlock.classList.replace('hidden', 'flex'); };
+            document.getElementById('btn-cancel-unlock').onclick = () => DOM.modals.unlock.classList.replace('flex', 'hidden');
+            document.getElementById('btn-confirm-unlock').onclick = unlockProject;
+
+            document.getElementById('btn-close-info').onclick = () => DOM.modals.info.classList.replace('flex', 'hidden');
+            DOM.modals.info.onclick = () => DOM.modals.info.classList.replace('flex', 'hidden');
+            document.getElementById('modal-info-content').onclick = (e) => e.stopPropagation();
+
+            document.getElementById('btn-cancel-wire').onclick = cancelWire;
+        }
+
+        function updateCanvasTransform() {
+            DOM.canvasTransform.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
+            DOM.canvasWrapper.style.backgroundSize = `${24 * state.zoom}px ${24 * state.zoom}px`;
+            DOM.canvasWrapper.style.backgroundPosition = `${state.pan.x}px ${state.pan.y}px`;
+            document.getElementById('btn-zoom-reset').innerText = Math.round(state.zoom * 100) + '%';
+        }
+
+        function deleteNode(id) {
+            state.nodes = state.nodes.filter(n => n.id !== id);
+            state.connections = state.connections.filter(c => c.startNodeId !== id && c.endNodeId !== id);
+            renderNodes();
+            drawWires();
+        }
+
+        function saveProject() {
+            if (state.isReadOnly) return;
+            const pid = state.currentProjectId || generateId();
+            const p = {
+                id: pid,
+                name: DOM.inputs.projName.value || 'Sin Nombre',
+                password: DOM.inputs.projPass.value || '',
+                creatorId: localUserId,
+                nodes: state.nodes,
+                connections: state.connections,
+                texts: state.texts
+            };
+            let all = JSON.parse(localStorage.getItem('rust_planner_projects') || '[]');
+            all = all.filter(x => x.id !== pid);
+            all.push(p);
+            localStorage.setItem('rust_planner_projects', JSON.stringify(all));
+            state.currentProjectId = pid;
+            state.projects = all;
+            
+            const btn = document.getElementById('btn-save');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> OK';
+            btn.classList.add('bg-green-600', 'text-white');
+            lucide.createIcons();
+            setTimeout(() => { btn.innerHTML = originalHTML; btn.classList.remove('bg-green-600', 'text-white'); lucide.createIcons(); }, 1000);
+        }
+
+        function loadLocalProjects() {
+            const stored = localStorage.getItem('rust_planner_projects');
+            if (stored) state.projects = JSON.parse(stored);
+        }
+
+        function renderProjectsModal() {
+            const list = document.getElementById('projects-list');
+            if (state.projects.length === 0) {
+                list.innerHTML = '<div class="text-center py-10 text-slate-500 text-sm">No tienes proyectos guardados. ¡Crea o importa uno!</div>';
+                return;
+            }
+            
+            list.innerHTML = state.projects.map(p => {
+                const isOwner = p.creatorId === localUserId;
+                return `
+                <div class="flex items-center justify-between bg-slate-800/50 border border-slate-700/50 p-4 rounded-lg hover:bg-slate-800 transition-colors">
+                    <div>
+                        <h3 class="text-white font-bold text-sm mb-1 flex items-center gap-2">
+                            ${p.name}
+                            ${isOwner ? '<span class="text-[10px] text-green-500 bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">Mío</span>' : '<span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">Importado</span>'}
+                            ${p.password && !isOwner ? '<i data-lucide="lock" class="w-3 h-3 text-red-400"></i>' : ''}
+                        </h3>
+                        <div class="text-xs text-slate-400 flex gap-4">
+                            <span>Dispositivos: ${p.nodes.length}</span>
+                            <span>Cables: ${p.connections.length}</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="loadProject('${p.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-md text-xs font-bold uppercase shadow-md">Abrir</button>
+                        <button onclick="duplicateProject('${p.id}')" class="bg-indigo-600 hover:bg-indigo-500 text-white p-1.5 rounded-md shadow-md" title="Duplicar Proyecto"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                        <button onclick="exportProject('${p.id}')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-1.5 rounded-md shadow-md" title="Exportar"><i data-lucide="download" class="w-4 h-4"></i></button>
+                        ${isOwner ? `<button onclick="deleteProject('${p.id}')" class="bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white p-1.5 rounded-md"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                    </div>
+                </div>
+                `;
+            }).join('');
+            lucide.createIcons({ root: list });
+        }
+
+        window.loadProject = (pid) => {
+            const p = state.projects.find(x => x.id === pid);
+            if (!p) return;
+            state.nodes = p.nodes || [];
+            state.connections = p.connections || [];
+            state.texts = p.texts || [];
+            DOM.inputs.projName.value = p.name || 'Proyecto';
+            DOM.inputs.projPass.value = p.password || '';
+            state.currentProjectId = p.id;
+            
+            state.isReadOnly = (p.creatorId !== localUserId && p.password);
+            DOM.alerts.readonly.classList.toggle('hidden', !state.isReadOnly);
+            DOM.alerts.readonly.classList.toggle('flex', state.isReadOnly);
+            DOM.alerts.readOverlay.classList.toggle('hidden', !state.isReadOnly);
+            
+            DOM.inputs.projName.disabled = state.isReadOnly;
+            DOM.inputs.projPass.disabled = state.isReadOnly;
+            
+            if (state.isReadOnly) setTool('pan');
+            else setTool('select');
+            
+            state.pan = {x:0, y:0};
+            state.zoom = 1;
+            updateCanvasTransform();
+            renderNodes();
+            drawWires();
+            DOM.modals.projects.classList.replace('flex', 'hidden');
+        };
+
+        window.deleteProject = (pid) => {
+            state.projects = state.projects.filter(p => p.id !== pid);
+            localStorage.setItem('rust_planner_projects', JSON.stringify(state.projects));
+            if (state.currentProjectId === pid) newProject();
+            renderProjectsModal();
+        };
+
+        window.duplicateProject = (pid) => {
+            const p = state.projects.find(x => x.id === pid);
+            if (!p) return;
+            const newP = JSON.parse(JSON.stringify(p)); // Clonación profunda
+            newP.id = generateId();
+            newP.name = newP.name + ' (Copia)';
+            newP.creatorId = localUserId; // Te haces dueño de la copia
+            newP.password = ''; // Por seguridad, la copia nace sin contraseña
+            
+            state.projects.push(newP);
+            localStorage.setItem('rust_planner_projects', JSON.stringify(state.projects));
+            renderProjectsModal();
+        };
+
+        function newProject() {
+            state.nodes = []; state.connections = []; state.texts = [];
+            DOM.inputs.projName.value = 'Nuevo Proyecto';
+            DOM.inputs.projPass.value = '';
+            state.currentProjectId = null;
+            state.isReadOnly = false;
+            
+            DOM.alerts.readonly.classList.replace('flex', 'hidden');
+            DOM.alerts.readOverlay.classList.replace('flex', 'hidden');
+            DOM.inputs.projName.disabled = false;
+            DOM.inputs.projPass.disabled = false;
+            
+            state.pan = {x:0, y:0}; state.zoom = 1;
+            setTool('select');
+            updateCanvasTransform();
+            renderNodes();
+            drawWires();
+            DOM.modals.projects.classList.replace('flex', 'hidden');
+        }
+
+        window.exportProject = (pid) => {
+            const p = state.projects.find(x => x.id === pid);
+            if (!p) return;
+            const data = { name: p.name, password: p.password, creatorId: p.creatorId, nodes: p.nodes, connections: p.connections, texts: p.texts };
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (p.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'proyecto') + '.rustplan';
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        function importProject(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    if (data.nodes && data.connections) {
+                        const newP = { id: generateId(), name: data.name||'Importado', password: data.password||'', creatorId: data.creatorId||localUserId, nodes: data.nodes, connections: data.connections, texts: data.texts||[] };
+                        state.projects.push(newP);
+                        localStorage.setItem('rust_planner_projects', JSON.stringify(state.projects));
+                        renderProjectsModal();
+                        window.loadProject(newP.id);
+                    }
+                } catch(err) { console.error("Error importando", err); }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        }
+
+        function unlockProject() {
+            const input = document.getElementById('input-unlock').value;
+            const p = state.projects.find(x => x.id === state.currentProjectId);
+            if (p && input === p.password) {
+                state.isReadOnly = false;
+                DOM.alerts.readonly.classList.replace('flex', 'hidden');
+                DOM.alerts.readOverlay.classList.replace('flex', 'hidden');
+                DOM.inputs.projName.disabled = false;
+                DOM.inputs.projPass.disabled = false;
+                DOM.modals.unlock.classList.replace('flex', 'hidden');
+                document.getElementById('input-unlock').value = '';
+                setTool('select');
+            } else {
+                document.getElementById('unlock-error').classList.remove('hidden');
+            }
+        }
+
+        window.showComponentInfo = (compKey) => {
+            const comp = RUST_COMPONENTS[compKey];
+            if (!comp) return;
+            const cat = CATEGORIES[comp.category];
+            
+            document.getElementById('info-img').src = `https://rustlabs.com/img/items180/${comp.img}.png`;
+            document.getElementById('info-title').innerText = comp.name;
+            document.getElementById('info-desc').innerText = comp.desc;
+            document.getElementById('info-power').innerText = comp.power;
+            
+            const badge = document.getElementById('info-category-badge');
+            badge.className = `text-[10px] font-bold px-3 py-1 rounded-full mt-3 border uppercase flex items-center gap-1 relative z-10 ${cat.border} ${cat.color} bg-slate-900`;
+            document.getElementById('info-category-name').innerText = cat.name;
+            document.getElementById('info-glow').style.backgroundColor = cat.hex;
+            
+            const iconEl = document.getElementById('info-category-icon');
+            iconEl.setAttribute('data-lucide', cat.icon);
+            lucide.createIcons({ root: badge });
+            
+            DOM.modals.info.classList.replace('hidden', 'flex');
+        };
+
+        window.showInfo = (nodeId) => {
+            const node = state.nodes.find(n => n.id === nodeId);
+            if (node) window.showComponentInfo(node.type);
+        };
+
+        window.onload = init;
+    </script>
+</body>
+</html>
