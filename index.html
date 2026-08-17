@@ -595,6 +595,7 @@
                 ta.onmousedown = e => e.stopPropagation();
                 ta.oninput = e => { text.content = e.target.value; };
                 ta.onmouseup = e => {
+                    e.stopPropagation();
                     text.width = ta.offsetWidth;
                     text.height = ta.offsetHeight;
                 };
@@ -861,7 +862,7 @@
             window.addEventListener('mouseup', () => {
                 state.dragging = null;
                 state.isPanning = false;
-                updateToolUI();
+                DOM.canvasWrapper.style.cursor = state.tool === 'pan' ? 'grab' : (state.connecting ? 'crosshair' : 'default');
             });
 
             document.getElementById('btn-zoom-in').onclick = () => { state.zoom = Math.min(3, state.zoom + 0.2); updateCanvasTransform(); };
